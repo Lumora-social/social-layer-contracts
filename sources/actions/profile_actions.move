@@ -1,0 +1,180 @@
+module suins_social_layer::profile_actions {
+    use sui::url::{Url};
+    use sui::clock::{Clock};
+
+    use std::string::{String};
+
+    use suins_social_layer::profile::{Self, Profile};
+    use suins_social_layer::config::{Config};
+
+    #[allow(lint(self_transfer))]
+    public fun create_profile(
+        user_name: String,
+        display_name: String,
+        url: Option<Url>,
+        bio: Option<String>,
+        image_url: Option<Url>,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        let profile =profile::create_profile(
+            user_name,
+            display_name,
+            url,
+            bio,
+            image_url,
+            config,
+            clock,
+            ctx,
+        );
+
+        transfer::public_transfer(profile, tx_context::sender(ctx));
+    }
+
+    public fun set_display_name(
+        profile: &mut Profile,
+        display_name: String,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::set_display_name(
+            profile,
+            display_name,
+            config,
+            clock,
+            ctx,
+        );
+    }
+
+    public fun set_bio(
+        profile: &mut Profile,
+        bio: String,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::set_bio(
+            profile,
+            bio,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun remove_bio(
+        profile: &mut Profile,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::remove_bio(
+            profile,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun set_image_url(
+        profile: &mut Profile,
+        image_url: Url,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::set_image_url(
+            profile,
+            image_url,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun remove_image_url(
+        profile: &mut Profile,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::remove_image_url(  
+            profile,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun set_url(
+        profile: &mut Profile,
+        url: Url,
+        config: &Config,    
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::set_url(
+            profile,
+            url,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun remove_url(
+        profile: &mut Profile,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::remove_url(
+            profile,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun archive_profile(
+        profile: &mut Profile,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::archive_profile(   
+            profile,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun unarchive_profile(
+        profile: &mut Profile,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::unarchive_profile(
+            profile,
+            config,
+            clock,
+            ctx,
+        )
+    }
+
+    public fun delete_profile(
+        profile: Profile,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ) {
+        profile::delete_profile(
+            profile,
+            clock,
+            ctx,
+        )
+    }
+}
