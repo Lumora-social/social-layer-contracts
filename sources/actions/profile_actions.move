@@ -1,5 +1,4 @@
 module suins_social_layer::profile_actions {
-    use sui::url::{Url};
     use sui::clock::{Clock};
 
     use std::string::{String};
@@ -8,12 +7,12 @@ module suins_social_layer::profile_actions {
     use suins_social_layer::config::{Config};
 
     #[allow(lint(self_transfer))]
-    public fun create_profile(
+    public entry fun create_profile(
         user_name: String,
         display_name: String,
-        url: Option<Url>,
+        url: Option<String>,
         bio: Option<String>,
-        image_url: Option<Url>,
+        image_url: Option<String>,
         config: &Config,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -32,7 +31,7 @@ module suins_social_layer::profile_actions {
         transfer::public_transfer(profile, tx_context::sender(ctx));
     }
 
-    public fun set_display_name(
+    public entry fun set_display_name(
         profile: &mut Profile,
         display_name: String,
         config: &Config,
@@ -48,7 +47,7 @@ module suins_social_layer::profile_actions {
         );
     }
 
-    public fun set_bio(
+    public entry fun set_bio(
         profile: &mut Profile,
         bio: String,
         config: &Config,
@@ -64,7 +63,7 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun remove_bio(
+    public entry fun remove_bio(
         profile: &mut Profile,
         config: &Config,
         clock: &Clock,
@@ -78,9 +77,9 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun set_image_url(
+    public entry fun set_image_url(
         profile: &mut Profile,
-        image_url: Url,
+        image_url: String,
         config: &Config,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -94,7 +93,7 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun remove_image_url(
+    public entry fun remove_image_url(
         profile: &mut Profile,
         config: &Config,
         clock: &Clock,
@@ -108,9 +107,9 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun set_url(
+    public entry fun set_url(
         profile: &mut Profile,
-        url: Url,
+        url: String,
         config: &Config,    
         clock: &Clock,
         ctx: &mut TxContext,
@@ -124,7 +123,7 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun remove_url(
+    public entry fun remove_url(
         profile: &mut Profile,
         config: &Config,
         clock: &Clock,
@@ -138,7 +137,7 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun archive_profile(
+    public entry fun archive_profile(
         profile: &mut Profile,
         config: &Config,
         clock: &Clock,
@@ -152,7 +151,7 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun unarchive_profile(
+    public entry fun unarchive_profile(
         profile: &mut Profile,
         config: &Config,
         clock: &Clock,
@@ -166,7 +165,7 @@ module suins_social_layer::profile_actions {
         )
     }
 
-    public fun delete_profile(
+    public entry fun delete_profile(
         profile: Profile,
         clock: &Clock,
         ctx: &mut TxContext,

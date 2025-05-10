@@ -1,6 +1,5 @@
 module suins_social_layer::profile {
     use sui::event;
-    use sui::url::{Url};
     use sui::clock::{Self, Clock};
 
     use std::string::{String};
@@ -11,14 +10,15 @@ module suins_social_layer::profile {
     const EArchivedProfile: u64 = 0;
     const ESenderNotOwner: u64 = 1;
 
+    //TODO: Convert to url instead of string here?
     public struct Profile has key, store {
         id: UID,
         owner: address,
         display_name: String,
         user_name: String,
-        image_url: Option<Url>,
-        url: Option<Url>,
-        bio: Option<String>, //TODO: Constraints on string size?
+        image_url: Option<String>,
+        url: Option<String>,
+        bio: Option<String>,
         is_archived: bool,
         created_at: u64,
         updated_at: u64,
@@ -53,8 +53,8 @@ module suins_social_layer::profile {
         owner: address,
         display_name: String,
         timestamp: u64,
-        image_url: Option<Url>,
-        url: Option<Url>,
+        image_url: Option<String>,
+        url: Option<String>,
         bio: Option<String>,
     }
 
@@ -64,8 +64,8 @@ module suins_social_layer::profile {
         owner: address,
         display_name: String,
         timestamp: u64,
-        image_url: Option<Url>,
-        url: Option<Url>,
+        image_url: Option<String>,
+        url: Option<String>,
         bio: Option<String>,
     }
 
@@ -80,7 +80,7 @@ module suins_social_layer::profile {
         self.user_name
     }
 
-    public fun url(self: &Profile): Option<Url> {
+    public fun url(self: &Profile): Option<String> {
         assert!(!self.is_archived, EArchivedProfile);
         self.url
     }
@@ -90,7 +90,7 @@ module suins_social_layer::profile {
         self.bio
     }
 
-    public fun image_url(self: &Profile): Option<Url> {
+    public fun image_url(self: &Profile): Option<String> {
         assert!(!self.is_archived, EArchivedProfile);
         self.image_url
     }
@@ -167,7 +167,7 @@ module suins_social_layer::profile {
 
     public(package) fun set_image_url(
         profile: &mut Profile,
-        image_url: Url,
+        image_url: String,
         config: &Config,
         clock: &Clock,
         ctx: &TxContext,
@@ -198,7 +198,7 @@ module suins_social_layer::profile {
 
     public(package) fun set_url(
         profile: &mut Profile,
-        url: Url,
+        url: String,
         config: &Config,
         clock: &Clock,
         ctx: &TxContext,
@@ -302,9 +302,9 @@ module suins_social_layer::profile {
     public(package) fun create_profile(
         user_name: String,
         display_name: String,
-        url: Option<Url>,
+        url: Option<String>,
         bio: Option<String>,
-        image_url: Option<Url>,
+        image_url: Option<String>,
         config: &Config,
         clock: &Clock,
         ctx: &mut TxContext,
