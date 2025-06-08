@@ -19,7 +19,7 @@ module suins_social_layer::profile_actions {
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
-        let profile =profile::create_profile(
+        let profile = profile::create_profile(
             user_name,
             display_name,
             url,
@@ -36,8 +36,9 @@ module suins_social_layer::profile_actions {
 
 
     #[allow(lint(self_transfer))]
-    // Creates a profile without requiring a SuinsRegistration NFT, username is address
+    // Creates a profile without requiring a SuinsRegistration NFT
     public entry fun create_profile_without_suins(
+        user_name: String,
         display_name: String,
         url: Option<String>,
         bio: Option<String>,
@@ -46,7 +47,8 @@ module suins_social_layer::profile_actions {
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
-        let profile =profile::create_profile_without_suins(
+        let profile = profile::create_profile_without_suins(
+            user_name,
             display_name,
             url,
             bio,

@@ -6,6 +6,7 @@ module suins_social_layer::profile {
     use suins_social_layer::social_layer_config::Self as config;
     use suins_social_layer::social_layer_config::Config;
     use suins::suins_registration::SuinsRegistration;
+   use std::string;
 
     #[error]
     const EArchivedProfile: u64 = 0;
@@ -301,6 +302,7 @@ module suins_social_layer::profile {
         id.delete();
     }
     public(package) fun create_profile_without_suins(
+        user_name: String,
         display_name: String,
         url: Option<String>,
         bio: Option<String>,
@@ -309,40 +311,20 @@ module suins_social_layer::profile {
         clock: &Clock,
         ctx: &mut TxContext,
     ): Profile {
-        config::assert_interacting_with_most_up_to_date_package(config);
-        config::assert_display_name_length_is_valid(config, &display_name);
+        let mut user_address_with_hex_prefix = b"0x".to_string();
+        string::append(&mut user_address_with_hex_prefix, ctx.sender().to_string());
+        assert!(user_address_with_hex_prefix == user_name, EUserNameInvalid);
 
-        if(option::is_some(&bio)) {
-            config::assert_bio_length_is_valid(config, option::borrow(&bio));
-        };
-
-        let user_name = ctx.sender().to_string();
-
-        let profile = Profile {
-            id: object::new(ctx),
-            display_name,
+        create_profile_helper(
             user_name,
+            display_name,
             url,
             bio,
-            is_archived: false,
-            created_at: clock::timestamp_ms(clock),
-            updated_at: clock::timestamp_ms(clock),
             image_url,
-            owner: tx_context::sender(ctx),
-        };
-
-        event::emit(CreateProfileEvent {
-            profile_id: object::id(&profile),
-            user_name: profile.user_name,
-            display_name: profile.display_name,
-            timestamp: clock::timestamp_ms(clock),
-            image_url,
-            bio,
-            url,
-            owner: tx_context::sender(ctx),
-        });
-
-        profile
+            config,
+            clock,
+            ctx
+        )
     }
 
     public(package) fun create_profile(
@@ -356,14 +338,35 @@ module suins_social_layer::profile {
         clock: &Clock,
         ctx: &mut TxContext,
     ): Profile {
+        assert!(suins_registration.domain_name() == user_name, EUserNameInvalid);
+        create_profile_helper(
+            user_name,
+            display_name,
+            url,
+            bio,
+            image_url,
+            config,
+            clock,
+            ctx
+        )
+    }
+
+    public(package) fun create_profile_helper(
+        user_name: String,
+        display_name: String,
+        url: Option<String>,
+        bio: Option<String>,
+        image_url: Option<String>,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ): Profile {
         config::assert_interacting_with_most_up_to_date_package(config);
         config::assert_display_name_length_is_valid(config, &display_name);
-
         if(option::is_some(&bio)) {
             config::assert_bio_length_is_valid(config, option::borrow(&bio));
         };
 
-        assert!(suins_registration.domain_name() == user_name, EUserNameInvalid);
         let profile = Profile {
             id: object::new(ctx),
             display_name,
