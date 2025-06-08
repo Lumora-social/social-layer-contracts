@@ -300,6 +300,50 @@ module suins_social_layer::profile {
 
         id.delete();
     }
+    public(package) fun create_profile_without_suins(
+        display_name: String,
+        url: Option<String>,
+        bio: Option<String>,
+        image_url: Option<String>,
+        config: &Config,
+        clock: &Clock,
+        ctx: &mut TxContext,
+    ): Profile {
+        config::assert_interacting_with_most_up_to_date_package(config);
+        config::assert_display_name_length_is_valid(config, &display_name);
+
+        if(option::is_some(&bio)) {
+            config::assert_bio_length_is_valid(config, option::borrow(&bio));
+        };
+
+        let user_name = ctx.sender().to_string();
+
+        let profile = Profile {
+            id: object::new(ctx),
+            display_name,
+            user_name,
+            url,
+            bio,
+            is_archived: false,
+            created_at: clock::timestamp_ms(clock),
+            updated_at: clock::timestamp_ms(clock),
+            image_url,
+            owner: tx_context::sender(ctx),
+        };
+
+        event::emit(CreateProfileEvent {
+            profile_id: object::id(&profile),
+            user_name: profile.user_name,
+            display_name: profile.display_name,
+            timestamp: clock::timestamp_ms(clock),
+            image_url,
+            bio,
+            url,
+            owner: tx_context::sender(ctx),
+        });
+
+        profile
+    }
 
     public(package) fun create_profile(
         user_name: String,
