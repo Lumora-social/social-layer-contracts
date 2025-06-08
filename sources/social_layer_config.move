@@ -1,9 +1,9 @@
-module suins_social_layer::config {
+module suins_social_layer::social_layer_config {
     use sui::types;
     use std::string::{String};
     
     use suins_social_layer::app::{AdminCap};
-    use suins_social_layer::constants;
+    use suins_social_layer::social_layer_constants as constants;
 
     const ENotLatestVersion: u64 = 0;
     const ETypeNotOneTimeWitness: u64 = 1;
@@ -13,7 +13,7 @@ module suins_social_layer::config {
     const EBioTooShort: u64 = 5;
     const EAddressIsNotConfigManager: u64 = 6;
 
-    public struct CONFIG has drop {}
+    public struct SOCIAL_LAYER_CONFIG has drop {}
 
     public struct Config has key {
         id: UID,
@@ -39,8 +39,9 @@ module suins_social_layer::config {
         assert!(config.config_manager == tx_context::sender(ctx), EAddressIsNotConfigManager);
     }
 
-    public(package) fun create_config(otw: &CONFIG, ctx: &mut TxContext) {
-        assert!(types::is_one_time_witness<CONFIG>(otw), ETypeNotOneTimeWitness);
+    public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext) {
+        assert!(types::is_one_time_witness<SOCIAL_LAYER_CONFIG>(otw), ETypeNotOneTimeWitness);
+
 
         let config = Config{
             id: object::new(ctx), 
@@ -55,7 +56,7 @@ module suins_social_layer::config {
         transfer::share_object(config);
     }
     
-    fun init(otw: CONFIG, ctx: &mut TxContext) {
+    fun init(otw: SOCIAL_LAYER_CONFIG, ctx: &mut TxContext) {
         create_config(&otw, ctx);
     }
     

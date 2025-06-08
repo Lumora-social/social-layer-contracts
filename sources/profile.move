@@ -3,17 +3,19 @@ module suins_social_layer::profile {
     use sui::clock::{Self, Clock};
 
     use std::string::{String};
+    use suins_social_layer::social_layer_config::Self as config;
+    use suins_social_layer::social_layer_config::Config;
+    use suins::suins_registration::SuinsRegistration;
 
-    use suins_social_layer::config::{Self, Config};
-    
     #[error]
     const EArchivedProfile: u64 = 0;
     const ESenderNotOwner: u64 = 1;
+    const EUserNameInvalid: u64 = 2; //TODO: Unique error codes everywhere?
 
     //TODO: Convert to url instead of string here?
     public struct Profile has key, store {
         id: UID,
-        owner: address,
+        owner: address, //TODO: Will cause issue if the owner changes? Multiple addrresses?
         display_name: String,
         user_name: String,
         image_url: Option<String>,
@@ -305,6 +307,7 @@ module suins_social_layer::profile {
         url: Option<String>,
         bio: Option<String>,
         image_url: Option<String>,
+        suins_registration: &SuinsRegistration,
         config: &Config,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -316,6 +319,7 @@ module suins_social_layer::profile {
             config::assert_bio_length_is_valid(config, option::borrow(&bio));
         };
 
+        assert!(suins_registration.domain_name() == user_name, EUserNameInvalid);
         let profile = Profile {
             id: object::new(ctx),
             display_name,

@@ -4,7 +4,8 @@ module suins_social_layer::profile_actions {
     use std::string::{String};
 
     use suins_social_layer::profile::{Self, Profile};
-    use suins_social_layer::config::{Config};
+    use suins_social_layer::social_layer_config::{Config};
+    use suins::suins_registration::SuinsRegistration;
 
     #[allow(lint(self_transfer))]
     public entry fun create_profile(
@@ -13,6 +14,7 @@ module suins_social_layer::profile_actions {
         url: Option<String>,
         bio: Option<String>,
         image_url: Option<String>,
+        suins_registration: &SuinsRegistration,
         config: &Config,
         clock: &Clock,
         ctx: &mut TxContext,
@@ -23,6 +25,7 @@ module suins_social_layer::profile_actions {
             url,
             bio,
             image_url,
+            suins_registration,
             config,
             clock,
             ctx,
