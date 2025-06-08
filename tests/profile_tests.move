@@ -1,11 +1,10 @@
 module suins_social_layer::profile_tests;
 
+use sui::clock;
 use sui::test_scenario::{Self, next_tx, ctx};
 use sui::test_utils::assert_eq;
-use suins_social_layer::social_layer_config;
-use sui::clock;
 use suins_social_layer::profile::Profile;
-use sui::token::add_approval;
+use suins_social_layer::social_layer_config;
 
 #[test]
 fun test_create_profile() {
@@ -26,16 +25,16 @@ fun test_create_profile() {
     let image_url = option::some(b"image_url".to_string());
     let mut user_address_with_hex_prefix = b"0x".to_string();
     std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
-        suins_social_layer::profile_actions::create_profile_without_suins(
-            user_address_with_hex_prefix,
-            display_name,
-            url,
-            bio,
-            image_url,
-            &config,
-            &clock,
-            test_scenario::ctx(&mut scenario),
-        );
+    suins_social_layer::profile_actions::create_profile_without_suins(
+        user_address_with_hex_prefix,
+        display_name,
+        url,
+        bio,
+        image_url,
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
 
     next_tx(&mut scenario, user_address);
     let profile = test_scenario::take_from_sender<Profile>(&scenario);
