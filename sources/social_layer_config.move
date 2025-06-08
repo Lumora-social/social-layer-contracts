@@ -137,4 +137,18 @@ module suins_social_layer::social_layer_config {
         assert!(bio.length() >= config.bio_min_length, EBioTooShort);
         assert!(bio.length() <= config.bio_max_length, EBioTooLong);
     }
+
+    #[test_only]
+    public fun test_create_config(ctx: &mut TxContext) {
+        let config = Config{
+            id: object::new(ctx), 
+            version: 1,
+            display_name_min_length: constants::display_name_min_length(),
+            display_name_max_length: constants::display_name_max_length(),
+            bio_min_length: constants::bio_min_length(),
+            bio_max_length: constants::bio_max_length(),
+            config_manager: tx_context::sender(ctx),
+        };
+        transfer::share_object(config)
+    }
 }
