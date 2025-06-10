@@ -330,7 +330,10 @@ public(package) fun create_profile(
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
-    assert!(suins_registration.domain_name() == user_name, EUserNameInvalid);
+    let mut user_address_with_sui_domain = user_name;
+    string::append(&mut user_address_with_sui_domain, b".sui".to_string());
+    assert!(suins_registration.domain_name() == user_address_with_sui_domain, EUserNameInvalid);
+
     create_profile_helper(
         user_name,
         display_name,
