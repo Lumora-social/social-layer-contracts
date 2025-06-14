@@ -37,11 +37,20 @@ public fun get_record(self: &Registry, user_name: String): &address {
 }
 
 public(package) fun add_record(self: &mut Registry, user_name: String, address: address) {
-    assert!(table::contains(&self.registry, user_name), ERecordAlreadyExists);
+    assert!(!table::contains(&self.registry, user_name), ERecordAlreadyExists);
     table::add(&mut self.registry, user_name, address);
 }
 
 public(package) fun remove_record(self: &mut Registry, user_name: String) {
     assert!(table::contains(&self.registry, user_name), ERecordDoesNotExist);
     table::remove(&mut self.registry, user_name);
+}
+
+#[test_only]
+public fun create_registry_for_testing(ctx: &mut TxContext) {
+    let registry = Registry {
+        id: object::new(ctx),
+        registry: table::new(ctx),
+    };
+    transfer::share_object(registry);
 }
