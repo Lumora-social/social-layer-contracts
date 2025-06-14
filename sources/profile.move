@@ -5,6 +5,7 @@ use sui::clock::{Self, Clock};
 use sui::event;
 use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
+use suins_social_layer::social_layer_registry::{add_record, remove_record, Registry};
 
 #[error]
 const EArchivedProfile: u64 = 0;
@@ -267,8 +268,14 @@ public fun unarchive_profile(
     });
 }
 
-public fun delete_profile(profile: Profile, clock: &Clock, ctx: &mut TxContext) {
+public fun delete_profile(
+    profile: Profile,
+    registry: &mut Registry,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+    remove_record(registry, profile.user_name);
 
     let Profile {
         id,
@@ -300,6 +307,7 @@ public(package) fun create_profile_without_suins(
     bio: Option<String>,
     image_url: Option<String>,
     config: &Config,
+    registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
@@ -314,6 +322,7 @@ public(package) fun create_profile_without_suins(
         bio,
         image_url,
         config,
+        registry,
         clock,
         ctx,
     )
@@ -327,6 +336,7 @@ public(package) fun create_profile(
     image_url: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
+    registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
@@ -341,6 +351,7 @@ public(package) fun create_profile(
         bio,
         image_url,
         config,
+        registry,
         clock,
         ctx,
     )
@@ -353,6 +364,7 @@ public(package) fun create_profile_helper(
     bio: Option<String>,
     image_url: Option<String>,
     config: &Config,
+    registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
@@ -361,6 +373,7 @@ public(package) fun create_profile_helper(
     if (option::is_some(&bio)) {
         config::assert_bio_length_is_valid(config, option::borrow(&bio));
     };
+    add_record(registry, user_name, tx_context::sender(ctx));
 
     let profile = Profile {
         id: object::new(ctx),

@@ -5,6 +5,7 @@ use sui::clock::Clock;
 use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::Config;
+use suins_social_layer::social_layer_registry::Registry;
 
 #[allow(lint(self_transfer))]
 public entry fun create_profile(
@@ -15,6 +16,7 @@ public entry fun create_profile(
     image_url: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
+    registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
@@ -26,6 +28,7 @@ public entry fun create_profile(
         image_url,
         suins_registration,
         config,
+        registry,
         clock,
         ctx,
     );
@@ -42,6 +45,7 @@ public entry fun create_profile_without_suins(
     bio: Option<String>,
     image_url: Option<String>,
     config: &Config,
+    registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
@@ -52,6 +56,7 @@ public entry fun create_profile_without_suins(
         bio,
         image_url,
         config,
+        registry,
         clock,
         ctx,
     );
@@ -193,9 +198,15 @@ public entry fun unarchive_profile(
     )
 }
 
-public entry fun delete_profile(profile: Profile, clock: &Clock, ctx: &mut TxContext) {
+public entry fun delete_profile(
+    profile: Profile,
+    registry: &mut Registry,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
     profile::delete_profile(
         profile,
+        registry,
         clock,
         ctx,
     )
