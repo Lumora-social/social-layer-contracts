@@ -10,7 +10,7 @@ const ETypeNotOneTimeWitness: u64 = 3;
 
 public struct Registry has key, store {
     id: UID,
-    registry: Table<String, address>,
+    registry: Table<String, ID>,
 }
 
 public struct SOCIAL_LAYER_REGISTRY has drop {}
@@ -32,13 +32,13 @@ public fun has_record(self: &Registry, user_name: String): bool {
     table::contains(&self.registry, user_name)
 }
 
-public fun get_record(self: &Registry, user_name: String): &address {
+public fun get_record(self: &Registry, user_name: String): &ID {
     table::borrow(&self.registry, user_name)
 }
 
-public(package) fun add_record(self: &mut Registry, user_name: String, address: address) {
+public(package) fun add_record(self: &mut Registry, user_name: String, profile_id: ID) {
     assert!(!table::contains(&self.registry, user_name), ERecordAlreadyExists);
-    table::add(&mut self.registry, user_name, address);
+    table::add(&mut self.registry, user_name, profile_id);
 }
 
 public(package) fun remove_record(self: &mut Registry, user_name: String) {

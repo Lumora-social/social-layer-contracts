@@ -5,12 +5,13 @@ use sui::clock::{Self, Clock};
 use sui::event;
 use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
-use suins_social_layer::social_layer_registry::{add_record, remove_record, Registry};
+use suins_social_layer::social_layer_registry::{add_record, remove_record, has_record, Registry};
 
 #[error]
 const EArchivedProfile: u64 = 0;
 const ESenderNotOwner: u64 = 1;
 const EUserNameInvalid: u64 = 2; //TODO: Unique error codes everywhere?
+const EUserNameAlreadyExists: u64 = 3;
 
 //TODO: Convert to url instead of string here?
 public struct Profile has key, store {
@@ -18,7 +19,8 @@ public struct Profile has key, store {
     owner: address, //TODO: Will cause issue if the owner changes? Multiple addrresses?
     display_name: String,
     user_name: String,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
     is_archived: bool,
@@ -55,7 +57,8 @@ public struct CreateProfileEvent has copy, drop {
     owner: address,
     display_name: String,
     timestamp: u64,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -66,7 +69,8 @@ public struct UpdateProfileEvent has copy, drop {
     owner: address,
     display_name: String,
     timestamp: u64,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -92,9 +96,14 @@ public fun bio(self: &Profile): Option<String> {
     self.bio
 }
 
-public fun image_url(self: &Profile): Option<String> {
+public fun display_image_blob_id(self: &Profile): Option<String> {
     assert!(!self.is_archived, EArchivedProfile);
-    self.image_url
+    self.display_image_blob_id
+}
+
+public fun background_image_blob_id(self: &Profile): Option<String> {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.background_image_blob_id
 }
 
 public fun is_archived(self: &Profile): bool {
@@ -108,7 +117,8 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
         owner: profile.owner,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
-        image_url: profile.image_url,
+        display_image_blob_id: profile.display_image_blob_id,
+        background_image_blob_id: profile.background_image_blob_id,
         url: profile.url,
         bio: profile.bio,
     });
@@ -164,9 +174,9 @@ public(package) fun remove_bio(
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun set_image_url(
+public(package) fun set_display_image_blob_id(
     profile: &mut Profile,
-    image_url: String,
+    display_image_blob_id: String,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
@@ -174,13 +184,13 @@ public(package) fun set_image_url(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    profile.image_url = option::some(image_url);
+    profile.display_image_blob_id = option::some(display_image_blob_id);
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun remove_image_url(
+public(package) fun remove_display_image_blob_id(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
@@ -189,7 +199,38 @@ public(package) fun remove_image_url(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    profile.image_url = option::none();
+    profile.display_image_blob_id = option::none();
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
+public(package) fun set_background_image_blob_id(
+    profile: &mut Profile,
+    background_image_blob_id: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.background_image_blob_id = option::some(background_image_blob_id);
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
+public(package) fun remove_background_image_blob_id(
+    profile: &mut Profile,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.background_image_blob_id = option::none();
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -286,7 +327,8 @@ public fun delete_profile(
         is_archived: _,
         created_at: _,
         updated_at: _,
-        image_url: _,
+        display_image_blob_id: _,
+        background_image_blob_id: _,
         owner,
     } = profile;
 
@@ -305,7 +347,8 @@ public(package) fun create_profile_without_suins(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
@@ -320,7 +363,8 @@ public(package) fun create_profile_without_suins(
         display_name,
         url,
         bio,
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         config,
         registry,
         clock,
@@ -333,7 +377,8 @@ public(package) fun create_profile(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
     registry: &mut Registry,
@@ -349,7 +394,8 @@ public(package) fun create_profile(
         display_name,
         url,
         bio,
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         config,
         registry,
         clock,
@@ -362,7 +408,8 @@ public(package) fun create_profile_helper(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
@@ -373,7 +420,7 @@ public(package) fun create_profile_helper(
     if (option::is_some(&bio)) {
         config::assert_bio_length_is_valid(config, option::borrow(&bio));
     };
-    add_record(registry, user_name, tx_context::sender(ctx));
+    assert!(!has_record(registry, user_name), EUserNameAlreadyExists);
 
     let profile = Profile {
         id: object::new(ctx),
@@ -384,16 +431,19 @@ public(package) fun create_profile_helper(
         is_archived: false,
         created_at: clock::timestamp_ms(clock),
         updated_at: clock::timestamp_ms(clock),
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         owner: tx_context::sender(ctx),
     };
 
+    add_record(registry, user_name, object::id(&profile));
     event::emit(CreateProfileEvent {
         profile_id: object::id(&profile),
         user_name: profile.user_name,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         bio,
         url,
         owner: tx_context::sender(ctx),

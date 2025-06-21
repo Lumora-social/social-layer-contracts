@@ -13,7 +13,8 @@ public entry fun create_profile(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
     registry: &mut Registry,
@@ -25,7 +26,8 @@ public entry fun create_profile(
         display_name,
         url,
         bio,
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         suins_registration,
         config,
         registry,
@@ -43,7 +45,8 @@ public entry fun create_profile_without_suins(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    image_url: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
@@ -54,7 +57,8 @@ public entry fun create_profile_without_suins(
         display_name,
         url,
         bio,
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         config,
         registry,
         clock,
@@ -110,29 +114,59 @@ public entry fun remove_bio(
     )
 }
 
-public entry fun set_image_url(
+public entry fun set_display_image_blob_id(
     profile: &mut Profile,
-    image_url: String,
+    display_image_blob_id: String,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::set_image_url(
+    profile::set_display_image_blob_id(
         profile,
-        image_url,
+        display_image_blob_id,
         config,
         clock,
         ctx,
     )
 }
 
-public entry fun remove_image_url(
+public entry fun remove_display_image_blob_id(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::remove_image_url(
+    profile::remove_display_image_blob_id(
+        profile,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun set_background_image_blob_id(
+    profile: &mut Profile,
+    background_image_blob_id: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::set_background_image_blob_id(
+        profile,
+        background_image_blob_id,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun remove_background_image_blob_id(
+    profile: &mut Profile,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::remove_background_image_blob_id(
         profile,
         config,
         clock,

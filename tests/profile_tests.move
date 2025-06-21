@@ -27,7 +27,8 @@ fun test_profile_operations() {
     let display_name = b"initial_name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
-    let image_url = option::some(b"initial_image_url".to_string());
+    let display_image_blob_id = option::some(b"initial_image_url".to_string());
+    let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let mut user_address_with_hex_prefix = b"0x".to_string();
     std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
     suins_social_layer::profile_actions::create_profile_without_suins(
@@ -35,7 +36,8 @@ fun test_profile_operations() {
         display_name,
         url,
         bio,
-        image_url,
+        display_image_blob_id,
+        background_image_blob_id,
         &config,
         &mut registry,
         &clock,
@@ -49,58 +51,65 @@ fun test_profile_operations() {
     assert_eq(profile.display_name(), b"initial_name".to_string());
     assert_eq(profile.url(), option::some(b"initial_url".to_string()));
     assert_eq(profile.bio(), option::some(b"Initial bio".to_string()));
-    assert_eq(profile.image_url(), option::some(b"initial_image_url".to_string()));
+    assert_eq(profile.display_image_blob_id(), option::some(b"initial_image_url".to_string()));
+    assert_eq(
+        profile.background_image_blob_id(),
+        option::some(b"initial_background_image_url".to_string()),
+    );
 
     // Test 3: Update display name
-    let new_display_name = b"new_name".to_string();
-    suins_social_layer::profile_actions::set_display_name(
+    let new_display_image_blob_id = b"new_image_url".to_string();
+    suins_social_layer::profile_actions::set_display_image_blob_id(
         &mut profile,
-        new_display_name,
+        new_display_image_blob_id,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.display_name(), new_display_name);
+    assert_eq(profile.display_image_blob_id(), option::some(b"new_image_url".to_string()));
 
     // Test 4: Update bio
-    let new_bio = b"new bio".to_string();
-    suins_social_layer::profile_actions::set_bio(
+    let new_background_image_blob_id = b"new_background_image_url".to_string();
+    suins_social_layer::profile_actions::set_background_image_blob_id(
         &mut profile,
-        new_bio,
+        new_background_image_blob_id,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.bio(), option::some(new_bio));
+    assert_eq(
+        profile.background_image_blob_id(),
+        option::some(b"new_background_image_url".to_string()),
+    );
 
     // Test 5: Remove bio
-    suins_social_layer::profile_actions::remove_bio(
+    suins_social_layer::profile_actions::remove_background_image_blob_id(
         &mut profile,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.bio(), option::none<String>());
+    assert_eq(profile.background_image_blob_id(), option::none<String>());
 
     // Test 6: Update image URL
-    let new_image_url = b"new_image_url".to_string();
-    suins_social_layer::profile_actions::set_image_url(
+    let new_display_image_blob_id = b"new_image_url".to_string();
+    suins_social_layer::profile_actions::set_display_image_blob_id(
         &mut profile,
-        new_image_url,
+        new_display_image_blob_id,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.image_url(), option::some(new_image_url));
+    assert_eq(profile.display_image_blob_id(), option::some(b"new_image_url".to_string()));
 
     // Test 7: Remove image URL
-    suins_social_layer::profile_actions::remove_image_url(
+    suins_social_layer::profile_actions::remove_display_image_blob_id(
         &mut profile,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.image_url(), option::none<String>());
+    assert_eq(profile.display_image_blob_id(), option::none<String>());
 
     // Test 8: Update URL
     let new_url = b"new_url".to_string();
@@ -111,7 +120,21 @@ fun test_profile_operations() {
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.url(), option::some(new_url));
+    assert_eq(profile.url(), option::some(b"new_url".to_string()));
+
+    // Test 9: Update blobID
+    let new_background_image_blob_id = b"new_background_image_url".to_string();
+    suins_social_layer::profile_actions::set_background_image_blob_id(
+        &mut profile,
+        new_background_image_blob_id,
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+    assert_eq(
+        profile.background_image_blob_id(),
+        option::some(b"new_background_image_url".to_string()),
+    );
 
     // Test 9: Remove URL
     suins_social_layer::profile_actions::remove_url(
@@ -156,7 +179,7 @@ fun test_profile_operations() {
 }
 
 #[test]
-#[expected_failure(abort_code = suins_social_layer::social_layer_registry::ERecordAlreadyExists)]
+#[expected_failure(abort_code = suins_social_layer::profile::EUserNameAlreadyExists)]
 fun test_duplicate_profile_creation() {
     let user_address: address = @0xA;
     let admin_address: address = @0xB;
@@ -175,7 +198,6 @@ fun test_duplicate_profile_creation() {
     let display_name = b"initial_name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
-    let image_url = option::some(b"initial_image_url".to_string());
     let mut user_address_with_hex_prefix = b"0x".to_string();
     std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
 
@@ -185,7 +207,8 @@ fun test_duplicate_profile_creation() {
         display_name,
         url,
         bio,
-        image_url,
+        option::none<String>(),
+        option::none<String>(),
         &config,
         &mut registry,
         &clock,
@@ -199,7 +222,8 @@ fun test_duplicate_profile_creation() {
         display_name,
         url,
         bio,
-        image_url,
+        option::none<String>(),
+        option::none<String>(),
         &config,
         &mut registry,
         &clock,
