@@ -15,6 +15,7 @@ public entry fun create_profile(
     bio: Option<String>,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
     registry: &mut Registry,
@@ -28,6 +29,7 @@ public entry fun create_profile(
         bio,
         display_image_blob_id,
         background_image_blob_id,
+        walrus_site_id,
         suins_registration,
         config,
         registry,
@@ -47,6 +49,7 @@ public entry fun create_profile_without_suins(
     bio: Option<String>,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
@@ -59,6 +62,7 @@ public entry fun create_profile_without_suins(
         bio,
         display_image_blob_id,
         background_image_blob_id,
+        walrus_site_id,
         config,
         registry,
         clock,
@@ -197,6 +201,36 @@ public entry fun remove_url(
     ctx: &mut TxContext,
 ) {
     profile::remove_url(
+        profile,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun set_walrus_site_id(
+    profile: &mut Profile,
+    walrus_site_id: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::set_walrus_site_id(
+        profile,
+        walrus_site_id,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun remove_walrus_site_id(
+    profile: &mut Profile,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::remove_walrus_site_id(
         profile,
         config,
         clock,

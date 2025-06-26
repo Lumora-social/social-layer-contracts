@@ -21,6 +21,7 @@ public struct Profile has key, store {
     user_name: String,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
     is_archived: bool,
@@ -59,6 +60,7 @@ public struct CreateProfileEvent has copy, drop {
     timestamp: u64,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -71,6 +73,7 @@ public struct UpdateProfileEvent has copy, drop {
     timestamp: u64,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -106,6 +109,11 @@ public fun background_image_blob_id(self: &Profile): Option<String> {
     self.background_image_blob_id
 }
 
+public fun walrus_site_id(self: &Profile): Option<String> {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.walrus_site_id
+}
+
 public fun is_archived(self: &Profile): bool {
     self.is_archived
 }
@@ -119,6 +127,7 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
         timestamp: clock::timestamp_ms(clock),
         display_image_blob_id: profile.display_image_blob_id,
         background_image_blob_id: profile.background_image_blob_id,
+        walrus_site_id: profile.walrus_site_id,
         url: profile.url,
         bio: profile.bio,
     });
@@ -267,6 +276,37 @@ public(package) fun remove_url(
     emit_update_profile_event(profile, clock);
 }
 
+public(package) fun set_walrus_site_id(
+    profile: &mut Profile,
+    walrus_site_id: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.walrus_site_id = option::some(walrus_site_id);
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
+public(package) fun remove_walrus_site_id(
+    profile: &mut Profile,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.walrus_site_id = option::none();
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
 public fun archive_profile(
     profile: &mut Profile,
     config: &Config,
@@ -329,6 +369,7 @@ public fun delete_profile(
         updated_at: _,
         display_image_blob_id: _,
         background_image_blob_id: _,
+        walrus_site_id: _,
         owner,
     } = profile;
 
@@ -349,6 +390,7 @@ public(package) fun create_profile_without_suins(
     bio: Option<String>,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
@@ -365,6 +407,7 @@ public(package) fun create_profile_without_suins(
         bio,
         display_image_blob_id,
         background_image_blob_id,
+        walrus_site_id,
         config,
         registry,
         clock,
@@ -379,6 +422,7 @@ public(package) fun create_profile(
     bio: Option<String>,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
     registry: &mut Registry,
@@ -396,6 +440,7 @@ public(package) fun create_profile(
         bio,
         display_image_blob_id,
         background_image_blob_id,
+        walrus_site_id,
         config,
         registry,
         clock,
@@ -410,6 +455,7 @@ public(package) fun create_profile_helper(
     bio: Option<String>,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
@@ -433,6 +479,7 @@ public(package) fun create_profile_helper(
         updated_at: clock::timestamp_ms(clock),
         display_image_blob_id,
         background_image_blob_id,
+        walrus_site_id,
         owner: tx_context::sender(ctx),
     };
 
@@ -444,6 +491,7 @@ public(package) fun create_profile_helper(
         timestamp: clock::timestamp_ms(clock),
         display_image_blob_id,
         background_image_blob_id,
+        walrus_site_id,
         bio,
         url,
         owner: tx_context::sender(ctx),

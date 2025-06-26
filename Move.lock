@@ -44,6 +44,6 @@ published-version = "1"
 
 [env.testnet]
 chain-id = "4c78adac"
-original-published-id = "0x8f4bff333c65277fcbd9fb37ea59713c7695a1fd08a44068a6c66210cdb69688"
-latest-published-id = "0x8f4bff333c65277fcbd9fb37ea59713c7695a1fd08a44068a6c66210cdb69688"
+original-published-id = "0xc0787aa5fbdbc39cdf5c80b8066fcb3b90999c63ce985d9530499d358c9ca6e1"
+latest-published-id = "0xc0787aa5fbdbc39cdf5c80b8066fcb3b90999c63ce985d9530499d358c9ca6e1"
 published-version = "1"
