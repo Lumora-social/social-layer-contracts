@@ -2,6 +2,7 @@ module suins_social_layer::profile;
 
 use std::string::{Self, String};
 use sui::clock::{Self, Clock};
+use sui::dynamic_field as df;
 use sui::event;
 use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
@@ -10,13 +11,12 @@ use suins_social_layer::social_layer_registry::{add_record, remove_record, has_r
 #[error]
 const EArchivedProfile: u64 = 0;
 const ESenderNotOwner: u64 = 1;
-const EUserNameInvalid: u64 = 2; //TODO: Unique error codes everywhere?
+const EUserNameInvalid: u64 = 2;
 const EUserNameAlreadyExists: u64 = 3;
 
-//TODO: Convert to url instead of string here?
 public struct Profile has key, store {
     id: UID,
-    owner: address, //TODO: Will cause issue if the owner changes? Multiple addrresses?
+    owner: address,
     display_name: String,
     user_name: String,
     display_image_blob_id: Option<String>,
@@ -78,6 +78,24 @@ public struct UpdateProfileEvent has copy, drop {
     bio: Option<String>,
 }
 
+public struct AddDFToProfileEvent has copy, drop {
+    profile_id: ID,
+    user_name: String,
+    owner: address,
+    df_key: String,
+    df_value: String,
+    timestamp: u64,
+}
+
+public struct RemoveDFFromProfileEvent has copy, drop {
+    profile_id: ID,
+    user_name: String,
+    owner: address,
+    df_key: String,
+    df_value: String,
+    timestamp: u64,
+}
+
 // === Getters ===
 public fun display_name(self: &Profile): String {
     assert!(!self.is_archived, EArchivedProfile);
@@ -130,6 +148,38 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
         walrus_site_id: profile.walrus_site_id,
         url: profile.url,
         bio: profile.bio,
+    });
+}
+
+fun emit_add_df_to_profile_event(
+    profile: &Profile,
+    df_key: String,
+    df_value: String,
+    clock: &Clock,
+) {
+    event::emit(AddDFToProfileEvent {
+        profile_id: object::id(profile),
+        user_name: profile.user_name,
+        owner: profile.owner,
+        timestamp: clock::timestamp_ms(clock),
+        df_key,
+        df_value,
+    });
+}
+
+fun emit_remove_df_from_profile_event(
+    profile: &Profile,
+    df_key: String,
+    df_value: String,
+    clock: &Clock,
+) {
+    event::emit(RemoveDFFromProfileEvent {
+        profile_id: object::id(profile),
+        user_name: profile.user_name,
+        owner: profile.owner,
+        timestamp: clock::timestamp_ms(clock),
+        df_key,
+        df_value,
     });
 }
 
@@ -498,4 +548,21 @@ public(package) fun create_profile_helper(
     });
 
     profile
+}
+
+public(package) fun add_df_to_profile(
+    profile: &mut Profile,
+    df_key: String,
+    df_value: String,
+    clock: &Clock,
+) {
+    df::add(&mut profile.id, df_key, df_value);
+    profile.updated_at = clock::timestamp_ms(clock);
+    emit_add_df_to_profile_event(profile, df_key, df_value, clock);
+}
+
+public(package) fun remove_df_from_profile(profile: &mut Profile, df_key: String, clock: &Clock) {
+    let df_value = df::remove(&mut profile.id, df_key);
+    profile.updated_at = clock::timestamp_ms(clock);
+    emit_remove_df_from_profile_event(profile, df_key, df_value, clock);
 }

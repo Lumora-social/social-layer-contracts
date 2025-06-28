@@ -279,3 +279,25 @@ public entry fun delete_profile(
         ctx,
     )
 }
+
+public entry fun add_df_to_profile(
+    profile: &mut Profile,
+    df_key: String,
+    df_value: String,
+    clock: &Clock,
+) {
+    profile::add_df_to_profile(
+        profile,
+        df_key,
+        df_value,
+        clock,
+    )
+}
+
+public entry fun remove_df_from_profile(profile: &mut Profile, df_key: String, clock: &Clock) {
+    profile::remove_df_from_profile(
+        profile,
+        df_key,
+        clock,
+    )
+}
