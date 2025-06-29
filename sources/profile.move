@@ -1,18 +1,16 @@
 module suins_social_layer::profile;
 
-use std::string::{Self, String};
+use std::string::String;
 use sui::clock::{Self, Clock};
 use sui::dynamic_field as df;
 use sui::event;
-use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
 use suins_social_layer::social_layer_registry::{add_record, remove_record, has_record, Registry};
 
 #[error]
 const EArchivedProfile: u64 = 0;
 const ESenderNotOwner: u64 = 1;
-const EUserNameInvalid: u64 = 2;
-const EUserNameAlreadyExists: u64 = 3;
+const EUserNameAlreadyExists: u64 = 2;
 
 public struct Profile has key, store {
     id: UID,
@@ -29,6 +27,7 @@ public struct Profile has key, store {
     updated_at: u64,
 }
 
+// === Events ===
 public struct DeleteProfileEvent has copy, drop {
     user_name: String,
     owner: address,
@@ -78,7 +77,7 @@ public struct UpdateProfileEvent has copy, drop {
     bio: Option<String>,
 }
 
-public struct AddDFToProfileEvent<K: copy + drop + store, V: copy + drop> has copy, drop {
+public struct AddDfToProfileEvent<K: copy + drop + store, V: copy + drop> has copy, drop {
     profile_id: ID,
     user_name: String,
     owner: address,
@@ -87,7 +86,7 @@ public struct AddDFToProfileEvent<K: copy + drop + store, V: copy + drop> has co
     timestamp: u64,
 }
 
-public struct RemoveDFFromProfileEvent<K: copy + drop + store, V: store> has copy, drop {
+public struct RemoveDfFromProfileEvent<K: copy + drop + store, V: store> has copy, drop {
     profile_id: ID,
     user_name: String,
     owner: address,
@@ -144,6 +143,13 @@ public fun uid_mut(self: &mut Profile): &mut UID {
     &mut self.id
 }
 
+public fun get_df<K: copy + drop + store, V: store + copy + drop>(
+    profile: &Profile,
+    df_key: K,
+): &V {
+    df::borrow(&profile.id, df_key)
+}
+
 fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
     event::emit(UpdateProfileEvent {
         profile_id: object::id(profile),
@@ -165,7 +171,7 @@ fun emit_add_df_to_profile_event<K: copy + drop + store, V: store + copy + drop>
     df_value: V,
     clock: &Clock,
 ): V {
-    event::emit(AddDFToProfileEvent {
+    event::emit(AddDfToProfileEvent {
         profile_id: object::id(profile),
         user_name: profile.user_name,
         owner: profile.owner,
@@ -182,7 +188,7 @@ fun emit_remove_df_from_profile_event<K: copy + drop + store, V: store + copy + 
     df_value: V,
     clock: &Clock,
 ) {
-    event::emit(RemoveDFFromProfileEvent {
+    event::emit(RemoveDfFromProfileEvent {
         profile_id: object::id(profile),
         user_name: profile.user_name,
         owner: profile.owner,
@@ -442,72 +448,7 @@ public(package) fun delete_profile(
     id.delete();
 }
 
-public(package) fun create_profile_without_suins(
-    user_name: String,
-    display_name: String,
-    url: Option<String>,
-    bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
-    walrus_site_id: Option<String>,
-    config: &Config,
-    registry: &mut Registry,
-    clock: &Clock,
-    ctx: &mut TxContext,
-): Profile {
-    let mut user_address_with_hex_prefix = b"0x".to_string();
-    string::append(&mut user_address_with_hex_prefix, ctx.sender().to_string());
-    assert!(user_address_with_hex_prefix == user_name, EUserNameInvalid);
-
-    create_profile_helper(
-        user_name,
-        display_name,
-        url,
-        bio,
-        display_image_blob_id,
-        background_image_blob_id,
-        walrus_site_id,
-        config,
-        registry,
-        clock,
-        ctx,
-    )
-}
-
 public(package) fun create_profile(
-    user_name: String,
-    display_name: String,
-    url: Option<String>,
-    bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
-    walrus_site_id: Option<String>,
-    suins_registration: &SuinsRegistration,
-    config: &Config,
-    registry: &mut Registry,
-    clock: &Clock,
-    ctx: &mut TxContext,
-): Profile {
-    let mut user_address_with_sui_domain = user_name;
-    string::append(&mut user_address_with_sui_domain, b".sui".to_string());
-    assert!(suins_registration.domain_name() == user_address_with_sui_domain, EUserNameInvalid);
-
-    create_profile_helper(
-        user_name,
-        display_name,
-        url,
-        bio,
-        display_image_blob_id,
-        background_image_blob_id,
-        walrus_site_id,
-        config,
-        registry,
-        clock,
-        ctx,
-    )
-}
-
-public(package) fun create_profile_helper(
     user_name: String,
     display_name: String,
     url: Option<String>,

@@ -31,10 +31,9 @@ fun test_profile_operations() {
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let mut user_address_with_hex_prefix = b"0x".to_string();
-    std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
-    suins_social_layer::profile_actions::create_profile_without_suins(
-        user_address_with_hex_prefix,
+    let user_name = b"user_name".to_string();
+    suins_social_layer::profile_actions::create_profile(
+        user_name,
         display_name,
         url,
         bio,
@@ -50,7 +49,7 @@ fun test_profile_operations() {
     // Test 2: Verify initial profile state
     next_tx(&mut scenario, user_address);
     let mut profile = test_scenario::take_from_sender<Profile>(&scenario);
-    assert_eq(profile.user_name(), user_address_with_hex_prefix);
+    assert_eq(profile.user_name(), user_name);
     assert_eq(profile.display_name(), b"initial_name".to_string());
     assert_eq(profile.url(), option::some(b"initial_url".to_string()));
     assert_eq(profile.bio(), option::some(b"Initial bio".to_string()));
@@ -225,12 +224,11 @@ fun test_duplicate_profile_creation() {
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let mut user_address_with_hex_prefix = b"0x".to_string();
-    std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
+    let user_name = b"user_name".to_string();
 
     // Create first profile
-    suins_social_layer::profile_actions::create_profile_without_suins(
-        user_address_with_hex_prefix,
+    suins_social_layer::profile_actions::create_profile(
+        user_name,
         display_name,
         url,
         bio,
@@ -245,8 +243,8 @@ fun test_duplicate_profile_creation() {
 
     // Try to create duplicate profile
     next_tx(&mut scenario, user_address);
-    suins_social_layer::profile_actions::create_profile_without_suins(
-        user_address_with_hex_prefix,
+    suins_social_layer::profile_actions::create_profile(
+        user_name,
         display_name,
         url,
         bio,
@@ -288,11 +286,10 @@ fun test_dynamic_fields() {
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let mut user_address_with_hex_prefix = b"0x".to_string();
-    std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
+    let user_name = b"user_name".to_string();
 
-    suins_social_layer::profile_actions::create_profile_without_suins(
-        user_address_with_hex_prefix,
+    suins_social_layer::profile_actions::create_profile(
+        user_name,
         display_name,
         url,
         bio,

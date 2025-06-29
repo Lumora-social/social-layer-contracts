@@ -2,7 +2,6 @@ module suins_social_layer::profile_actions;
 
 use std::string::String;
 use sui::clock::Clock;
-use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::Config;
 use suins_social_layer::social_layer_registry::Registry;
@@ -16,46 +15,12 @@ public entry fun create_profile(
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
     walrus_site_id: Option<String>,
-    suins_registration: &SuinsRegistration,
     config: &Config,
     registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     let profile = profile::create_profile(
-        user_name,
-        display_name,
-        url,
-        bio,
-        display_image_blob_id,
-        background_image_blob_id,
-        walrus_site_id,
-        suins_registration,
-        config,
-        registry,
-        clock,
-        ctx,
-    );
-
-    transfer::public_transfer(profile, tx_context::sender(ctx));
-}
-
-#[allow(lint(self_transfer))]
-// Creates a profile without requiring a SuinsRegistration NFT
-public entry fun create_profile_without_suins(
-    user_name: String,
-    display_name: String,
-    url: Option<String>,
-    bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
-    walrus_site_id: Option<String>,
-    config: &Config,
-    registry: &mut Registry,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    let profile = profile::create_profile_without_suins(
         user_name,
         display_name,
         url,
