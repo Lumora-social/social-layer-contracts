@@ -78,21 +78,21 @@ public struct UpdateProfileEvent has copy, drop {
     bio: Option<String>,
 }
 
-public struct AddDFToProfileEvent has copy, drop {
+public struct AddDFToProfileEvent<K: copy + drop + store, V: copy + drop> has copy, drop {
     profile_id: ID,
     user_name: String,
     owner: address,
-    df_key: String,
-    df_value: String,
+    df_key: K,
+    df_value: V,
     timestamp: u64,
 }
 
-public struct RemoveDFFromProfileEvent has copy, drop {
+public struct RemoveDFFromProfileEvent<K: copy + drop + store, V: store> has copy, drop {
     profile_id: ID,
     user_name: String,
     owner: address,
-    df_key: String,
-    df_value: String,
+    df_key: K,
+    df_value: V,
     timestamp: u64,
 }
 
@@ -136,6 +136,14 @@ public fun is_archived(self: &Profile): bool {
     self.is_archived
 }
 
+public fun uid(self: &Profile): &UID {
+    &self.id
+}
+
+public fun uid_mut(self: &mut Profile): &mut UID {
+    &mut self.id
+}
+
 fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
     event::emit(UpdateProfileEvent {
         profile_id: object::id(profile),
@@ -151,12 +159,12 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
     });
 }
 
-fun emit_add_df_to_profile_event(
+fun emit_add_df_to_profile_event<K: copy + drop + store, V: store + copy + drop>(
     profile: &Profile,
-    df_key: String,
-    df_value: String,
+    df_key: K,
+    df_value: V,
     clock: &Clock,
-) {
+): V {
     event::emit(AddDFToProfileEvent {
         profile_id: object::id(profile),
         user_name: profile.user_name,
@@ -165,12 +173,13 @@ fun emit_add_df_to_profile_event(
         df_key,
         df_value,
     });
+    df_value
 }
 
-fun emit_remove_df_from_profile_event(
+fun emit_remove_df_from_profile_event<K: copy + drop + store, V: store + copy + drop>(
     profile: &Profile,
-    df_key: String,
-    df_value: String,
+    df_key: K,
+    df_value: V,
     clock: &Clock,
 ) {
     event::emit(RemoveDFFromProfileEvent {
@@ -357,11 +366,11 @@ public(package) fun remove_walrus_site_id(
     emit_update_profile_event(profile, clock);
 }
 
-public fun archive_profile(
+public(package) fun archive_profile(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
@@ -378,11 +387,11 @@ public fun archive_profile(
     });
 }
 
-public fun unarchive_profile(
+public(package) fun unarchive_profile(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
@@ -399,11 +408,11 @@ public fun unarchive_profile(
     });
 }
 
-public fun delete_profile(
+public(package) fun delete_profile(
     profile: Profile,
     registry: &mut Registry,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
     remove_record(registry, profile.user_name);
@@ -550,10 +559,10 @@ public(package) fun create_profile_helper(
     profile
 }
 
-public(package) fun add_df_to_profile(
+public(package) fun add_df_to_profile<K: copy + drop + store, V: store + copy + drop>(
     profile: &mut Profile,
-    df_key: String,
-    df_value: String,
+    df_key: K,
+    df_value: V,
     clock: &Clock,
 ) {
     df::add(&mut profile.id, df_key, df_value);
@@ -561,8 +570,32 @@ public(package) fun add_df_to_profile(
     emit_add_df_to_profile_event(profile, df_key, df_value, clock);
 }
 
-public(package) fun remove_df_from_profile(profile: &mut Profile, df_key: String, clock: &Clock) {
-    let df_value = df::remove(&mut profile.id, df_key);
+public(package) fun remove_df_from_profile<K: copy + drop + store, V: store + copy + drop>(
+    profile: &mut Profile,
+    df_key: K,
+    clock: &Clock,
+) {
+    let df_value: V = df::remove(&mut profile.id, df_key);
     profile.updated_at = clock::timestamp_ms(clock);
     emit_remove_df_from_profile_event(profile, df_key, df_value, clock);
+}
+
+public(package) fun add_df_to_profile_no_event<K: copy + drop + store, V: store + drop>(
+    profile: &mut Profile,
+    df_key: K,
+    df_value: V,
+    clock: &Clock,
+) {
+    df::add(&mut profile.id, df_key, df_value);
+    profile.updated_at = clock::timestamp_ms(clock);
+}
+
+public(package) fun remove_df_from_profile_no_event<K: copy + drop + store, V: store + drop>(
+    profile: &mut Profile,
+    df_key: K,
+    clock: &Clock,
+): V {
+    let df_value: V = df::remove(&mut profile.id, df_key);
+    profile.updated_at = clock::timestamp_ms(clock);
+    df_value
 }

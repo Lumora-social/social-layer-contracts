@@ -2,9 +2,10 @@ module suins_social_layer::profile_tests;
 
 use std::string::String;
 use sui::clock;
+use sui::dynamic_field as df;
 use sui::test_scenario::{Self, next_tx, ctx};
 use sui::test_utils::assert_eq;
-use suins_social_layer::profile::Profile;
+use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config;
 use suins_social_layer::social_layer_registry;
 
@@ -253,6 +254,84 @@ fun test_duplicate_profile_creation() {
         background_image_blob_id,
         walrus_site_id,
         &config,
+        &mut registry,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+
+    clock.destroy_for_testing();
+    next_tx(&mut scenario, admin_address);
+    test_scenario::return_shared(config);
+    test_scenario::return_shared(registry);
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_dynamic_fields() {
+    let user_address: address = @0xA;
+    let admin_address: address = @0xB;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    social_layer_config::test_create_config(ctx(&mut scenario));
+    social_layer_registry::create_registry_for_testing(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
+
+    // Test 1: Create profile
+    next_tx(&mut scenario, user_address);
+    let clock = clock::create_for_testing(ctx(&mut scenario));
+    let display_name = b"initial_name".to_string();
+    let url = option::some(b"initial_url".to_string());
+    let bio = option::some(b"Initial bio".to_string());
+    let display_image_blob_id = option::some(b"initial_image_url".to_string());
+    let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
+    let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
+    let mut user_address_with_hex_prefix = b"0x".to_string();
+    std::string::append(&mut user_address_with_hex_prefix, user_address.to_string());
+
+    suins_social_layer::profile_actions::create_profile_without_suins(
+        user_address_with_hex_prefix,
+        display_name,
+        url,
+        bio,
+        display_image_blob_id,
+        background_image_blob_id,
+        walrus_site_id,
+        &config,
+        &mut registry,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+    next_tx(&mut scenario, user_address);
+    let mut profile = test_scenario::take_from_sender<Profile>(&scenario);
+
+    let mut df_key = b"test_df_key".to_string();
+    let mut df_value = b"test_df_value".to_string();
+    suins_social_layer::profile_actions::add_df_to_profile(&mut profile, df_key, df_value, &clock);
+    let df_value_retrieved = df::borrow<String, String>(profile::uid(&profile), df_key);
+    assert!(df_value_retrieved == df_value);
+
+    suins_social_layer::profile_actions::remove_df_from_profile<String, String>(
+        &mut profile,
+        df_key,
+        &clock,
+    );
+    assert!(!df::exists_(profile::uid(&profile), df_key));
+
+    df_value = b"new_df_value".to_string();
+    suins_social_layer::profile_actions::add_df_to_profile(&mut profile, df_key, df_value, &clock);
+    let df_value_retrieved = df::borrow<String, String>(profile::uid(&profile), df_key);
+    assert!(df_value_retrieved == df_value);
+
+    df_key = b"test_df_key_2".to_string();
+    suins_social_layer::profile_actions::add_df_to_profile(&mut profile, df_key, df_value, &clock);
+    let df_value_retrieved = df::borrow<String, String>(profile::uid(&profile), df_key);
+    assert!(df_value_retrieved == df_value);
+
+    suins_social_layer::profile_actions::delete_profile(
+        profile,
         &mut registry,
         &clock,
         test_scenario::ctx(&mut scenario),

@@ -280,10 +280,10 @@ public entry fun delete_profile(
     )
 }
 
-public entry fun add_df_to_profile(
+public entry fun add_df_to_profile<K: copy + drop + store, V: store + copy + drop>(
     profile: &mut Profile,
-    df_key: String,
-    df_value: String,
+    df_key: K,
+    df_value: V,
     clock: &Clock,
 ) {
     profile::add_df_to_profile(
@@ -294,10 +294,40 @@ public entry fun add_df_to_profile(
     )
 }
 
-public entry fun remove_df_from_profile(profile: &mut Profile, df_key: String, clock: &Clock) {
-    profile::remove_df_from_profile(
+public entry fun remove_df_from_profile<K: copy + drop + store, V: store + copy + drop>(
+    profile: &mut Profile,
+    df_key: K,
+    clock: &Clock,
+) {
+    profile::remove_df_from_profile<K, V>(
         profile,
         df_key,
         clock,
     )
+}
+
+public entry fun add_df_to_profile_no_event<K: copy + drop + store, V: store + drop>(
+    profile: &mut Profile,
+    df_key: K,
+    df_value: V,
+    clock: &Clock,
+) {
+    profile::add_df_to_profile_no_event(
+        profile,
+        df_key,
+        df_value,
+        clock,
+    )
+}
+
+public entry fun remove_df_from_profile_no_event<K: copy + drop + store, V: store + drop>(
+    profile: &mut Profile,
+    df_key: K,
+    clock: &Clock,
+) {
+    profile::remove_df_from_profile_no_event<K, V>(
+        profile,
+        df_key,
+        clock,
+    );
 }
