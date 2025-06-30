@@ -2,8 +2,10 @@ module suins_social_layer::profile;
 
 use std::string::String;
 use sui::clock::{Self, Clock};
+use sui::display;
 use sui::dynamic_field as df;
 use sui::event;
+use sui::package;
 use suins_social_layer::social_layer_config::{Self as config, Config};
 use suins_social_layer::social_layer_registry::{add_record, remove_record, has_record, Registry};
 
@@ -25,6 +27,29 @@ public struct Profile has key, store {
     is_archived: bool,
     created_at: u64,
     updated_at: u64,
+}
+
+// OTW for display.
+public struct PROFILE has drop {}
+
+fun init(otw: PROFILE, ctx: &mut TxContext) {
+    let publisher = package::claim(otw, ctx);
+    let mut display = display::new<Profile>(&publisher, ctx);
+
+    // TODO: change to the actual walrus app url
+    // display.add(
+    //     b"link".to_string(),
+    //     b"https://mock.walrus.app/0x{walrus_site_id}".to_string(),
+    // );
+
+    display.add(
+        b"image_url".to_string(),
+        b"https://aggregator.walrus-testnet.walrus.space/v1/blobs/{display_image_blob_id}".to_string(),
+    );
+    display.update_version();
+
+    transfer::public_transfer(publisher, ctx.sender());
+    transfer::public_transfer(display, ctx.sender());
 }
 
 // === Events ===

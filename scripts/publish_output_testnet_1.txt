@@ -1,4 +1,0 @@
-ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None }
-
-Caused by:
-    ErrorObject { code: ServerError(-32050), message: "Transaction timed out before reaching finality", data: None }

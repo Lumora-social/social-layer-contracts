@@ -6,6 +6,7 @@
 environment=$1
 
 sui client switch --env $environment
+rm -f scripts/publish_output_$environment.txt
 sui client publish > scripts/publish_output_$environment.txt
 
 echo "Extracting object IDs from: scripts/publish_output_$environment.txt"
@@ -54,7 +55,8 @@ echo ""
 
 # Extract Package ID
 echo "Package ID:"
-RAW_PACKAGE_ID=$(grep "PackageID:" "scripts/publish_output_$environment.txt" | sed 's/.*PackageID: //')
+RAW_PACKAGE_ID=$(grep "PackageID:" "scripts/publish_output_$environment.txt" | head -1 | sed 's/.*PackageID: //')
+echo "RAW_PACKAGE_ID: $RAW_PACKAGE_ID"
 PACKAGE_ID=$(clean_id "$RAW_PACKAGE_ID")
 if [ -n "$PACKAGE_ID" ]; then
     echo "  $PACKAGE_ID"
