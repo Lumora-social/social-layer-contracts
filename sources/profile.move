@@ -487,6 +487,7 @@ public(package) fun create_profile(
     ctx: &mut TxContext,
 ): Profile {
     config::assert_interacting_with_most_up_to_date_package(config);
+    config::assert_user_name_is_valid(config, &user_name);
     config::assert_display_name_length_is_valid(config, &display_name);
     if (option::is_some(&bio)) {
         config::assert_bio_length_is_valid(config, option::borrow(&bio));

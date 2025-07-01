@@ -31,7 +31,7 @@ fun test_profile_operations() {
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let user_name = b"user_name".to_string();
+    let user_name = b"user-name".to_string();
     suins_social_layer::profile_actions::create_profile(
         user_name,
         display_name,
@@ -224,7 +224,7 @@ fun test_duplicate_profile_creation() {
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let user_name = b"user_name".to_string();
+    let user_name = b"user-name".to_string();
 
     // Create first profile
     suins_social_layer::profile_actions::create_profile(
@@ -244,7 +244,7 @@ fun test_duplicate_profile_creation() {
     // Try to create duplicate profile
     next_tx(&mut scenario, user_address);
     suins_social_layer::profile_actions::create_profile(
-        user_name,
+        b"user-name".to_string(),
         display_name,
         url,
         bio,
@@ -286,7 +286,7 @@ fun test_dynamic_fields() {
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let user_name = b"user_name".to_string();
+    let user_name = b"user-name".to_string();
 
     suins_social_layer::profile_actions::create_profile(
         user_name,
