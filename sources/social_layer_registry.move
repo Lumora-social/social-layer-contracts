@@ -3,6 +3,7 @@ module suins_social_layer::social_layer_registry;
 use std::string::String;
 use sui::table::{Self, Table};
 use sui::types;
+use suins_social_layer::app::AdminCap;
 
 const ERecordAlreadyExists: u64 = 1;
 const ERecordDoesNotExist: u64 = 2;
@@ -44,6 +45,15 @@ public(package) fun add_record(self: &mut Registry, user_name: String, profile_i
 public(package) fun remove_record(self: &mut Registry, user_name: String) {
     assert!(table::contains(&self.registry, user_name), ERecordDoesNotExist);
     table::remove(&mut self.registry, user_name);
+}
+
+// Admin functions
+public fun add_record_admin(_: &AdminCap, self: &mut Registry, user_name: String, profile_id: ID) {
+    add_record(self, user_name, profile_id);
+}
+
+public fun remove_record_admin(_: &AdminCap, self: &mut Registry, user_name: String) {
+    remove_record(self, user_name);
 }
 
 #[test_only]

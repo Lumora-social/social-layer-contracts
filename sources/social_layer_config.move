@@ -12,6 +12,9 @@ const EDisplayNameTooShort: u64 = 3;
 const EBioTooLong: u64 = 4;
 const EBioTooShort: u64 = 5;
 const EAddressIsNotConfigManager: u64 = 6;
+const EUserNameTooLong: u64 = 7;
+const EUserNameTooShort: u64 = 8;
+const EUserNameInvalidCharacter: u64 = 9;
 
 public struct SOCIAL_LAYER_CONFIG has drop {}
 
@@ -20,6 +23,8 @@ public struct Config has key {
     version: u64,
     display_name_min_length: u64,
     display_name_max_length: u64,
+    user_name_min_length: u64,
+    user_name_max_length: u64,
     bio_min_length: u64,
     bio_max_length: u64,
     config_manager: address,
@@ -54,6 +59,8 @@ public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext
         version: 1,
         display_name_min_length: constants::display_name_min_length(),
         display_name_max_length: constants::display_name_max_length(),
+        user_name_min_length: constants::user_name_min_length(),
+        user_name_max_length: constants::user_name_max_length(),
         bio_min_length: constants::bio_min_length(),
         bio_max_length: constants::bio_max_length(),
         config_manager: tx_context::sender(ctx),
@@ -138,6 +145,40 @@ public fun assert_bio_length_is_valid(config: &Config, bio: &String) {
     assert!(bio.length() <= config.bio_max_length, EBioTooLong);
 }
 
+public fun assert_user_name_is_valid(config: &Config, user_name: &String) {
+    assert!(user_name.length() >= config.user_name_min_length, EUserNameTooShort);
+    assert!(user_name.length() <= config.user_name_max_length, EUserNameTooLong);
+    let user_name_bytes = user_name.as_bytes();
+    let mut index = 0;
+    let len = user_name.length();
+    while (index < len) {
+        let character = user_name_bytes[index];
+        let is_valid_character =
+            (0x61 <= character && character <= 0x7A)                   // a-z
+                || (0x30 <= character && character <= 0x39)                // 0-9
+                || (character == 0x2D && index != 0 && index != len - 1); // '-' not at beginning or end
+        assert!(is_valid_character, EUserNameInvalidCharacter);
+        index = index + 1;
+    };
+}
+
+// Getters
+public fun version(config: &Config): u64 { config.version }
+
+public fun display_name_min_length(config: &Config): u64 { config.display_name_min_length }
+
+public fun display_name_max_length(config: &Config): u64 { config.display_name_max_length }
+
+public fun user_name_min_length(config: &Config): u64 { config.user_name_min_length }
+
+public fun user_name_max_length(config: &Config): u64 { config.user_name_max_length }
+
+public fun bio_min_length(config: &Config): u64 { config.bio_min_length }
+
+public fun bio_max_length(config: &Config): u64 { config.bio_max_length }
+
+public fun config_manager(config: &Config): address { config.config_manager }
+
 #[test_only]
 public fun test_create_config(ctx: &mut TxContext) {
     let config = Config {
@@ -145,6 +186,8 @@ public fun test_create_config(ctx: &mut TxContext) {
         version: 1,
         display_name_min_length: constants::display_name_min_length(),
         display_name_max_length: constants::display_name_max_length(),
+        user_name_min_length: constants::user_name_min_length(),
+        user_name_max_length: constants::user_name_max_length(),
         bio_min_length: constants::bio_min_length(),
         bio_max_length: constants::bio_max_length(),
         config_manager: tx_context::sender(ctx),
