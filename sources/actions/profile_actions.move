@@ -296,3 +296,19 @@ public entry fun remove_df_from_profile_no_event<K: copy + drop + store, V: stor
         clock,
     );
 }
+
+public entry fun add_following(
+    profile: &mut Profile,
+    following_address: address,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::add_following(
+        profile,
+        following_address,
+        config,
+        clock,
+        ctx,
+    )
+}

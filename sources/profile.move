@@ -6,6 +6,7 @@ use sui::display;
 use sui::dynamic_field as df;
 use sui::event;
 use sui::package;
+use sui::table::Table;
 use suins_social_layer::social_layer_config::{Self as config, Config};
 use suins_social_layer::social_layer_registry::{add_record, remove_record, has_record, Registry};
 
@@ -24,6 +25,8 @@ public struct Profile has key, store {
     walrus_site_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
+    following: Table<address, bool>,
+    block_list: Table<address, bool>,
     is_archived: bool,
     created_at: u64,
     updated_at: u64,
@@ -37,10 +40,10 @@ fun init(otw: PROFILE, ctx: &mut TxContext) {
     let mut display = display::new<Profile>(&publisher, ctx);
 
     // TODO: change to the actual walrus app url
-    // display.add(
-    //     b"link".to_string(),
-    //     b"https://mock.walrus.app/0x{walrus_site_id}".to_string(),
-    // );
+    display.add(
+        b"link".to_string(),
+        b"https://mock.walrus.app/0x{walrus_site_id}".to_string(),
+    );
 
     display.add(
         b"image_url".to_string(),
@@ -164,8 +167,17 @@ public fun uid(self: &Profile): &UID {
     &self.id
 }
 
+// TODO: Dangerous?
 public fun uid_mut(self: &mut Profile): &mut UID {
     &mut self.id
+}
+
+public fun following(self: &Profile): &Table<address, bool> {
+    &self.following
+}
+
+public fun block_list(self: &Profile): &Table<address, bool> {
+    &self.block_list
 }
 
 public fun get_df<K: copy + drop + store, V: store + copy + drop>(
@@ -239,6 +251,62 @@ public(package) fun set_display_name(
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
+}
+
+public(package) fun add_following(
+    profile: &mut Profile,
+    following_address: address,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.following.add(following_address, true);
+    profile.updated_at = clock::timestamp_ms(clock);
+}
+
+public(package) fun remove_following(
+    profile: &mut Profile,
+    following_address: address,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.following.remove(following_address);
+    profile.updated_at = clock::timestamp_ms(clock);
+}
+
+public(package) fun add_block_list(
+    profile: &mut Profile,
+    block_address: address,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.block_list.add(block_address, true);
+    profile.updated_at = clock::timestamp_ms(clock);
+}
+
+public(package) fun remove_block_list(
+    profile: &mut Profile,
+    block_address: address,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    profile.block_list.remove(block_address);
+    profile.updated_at = clock::timestamp_ms(clock);
 }
 
 public(package) fun set_bio(
@@ -461,7 +529,12 @@ public(package) fun delete_profile(
         background_image_blob_id: _,
         walrus_site_id: _,
         owner,
+        following,
+        block_list,
     } = profile;
+
+    sui::table::drop(following);
+    sui::table::drop(block_list);
 
     event::emit(DeleteProfileEvent {
         user_name,
@@ -507,6 +580,8 @@ public(package) fun create_profile(
         background_image_blob_id,
         walrus_site_id,
         owner: tx_context::sender(ctx),
+        following: sui::table::new(ctx),
+        block_list: sui::table::new(ctx),
     };
 
     add_record(registry, user_name, object::id(&profile));
