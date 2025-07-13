@@ -2,13 +2,14 @@ module suins_social_layer::profile_actions;
 
 use std::string::String;
 use sui::clock::Clock;
+use suins::suins::SuiNS;
+use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::Config;
 use suins_social_layer::social_layer_registry::Registry;
 
 #[allow(lint(self_transfer))]
 public entry fun create_profile(
-    user_name: String,
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
@@ -16,18 +17,49 @@ public entry fun create_profile(
     background_image_blob_id: Option<String>,
     walrus_site_id: Option<String>,
     config: &Config,
+    suins: &SuiNS,
     registry: &mut Registry,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     let profile = profile::create_profile(
-        user_name,
         display_name,
         url,
         bio,
         display_image_blob_id,
         background_image_blob_id,
         walrus_site_id,
+        config,
+        suins,
+        registry,
+        clock,
+        ctx,
+    );
+
+    transfer::public_transfer(profile, tx_context::sender(ctx));
+}
+
+public entry fun create_profile_with_suins(
+    display_name: String,
+    url: Option<String>,
+    bio: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
+    suins_registration: &SuinsRegistration,
+    config: &Config,
+    registry: &mut Registry,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    let profile = profile::create_profile_with_suins(
+        display_name,
+        url,
+        bio,
+        display_image_blob_id,
+        background_image_blob_id,
+        walrus_site_id,
+        suins_registration,
         config,
         registry,
         clock,

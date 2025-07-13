@@ -27,14 +27,6 @@ fun test_config_creation() {
         social_layer_constants::display_name_max_length(),
     );
     assert_eq(
-        social_layer_config::user_name_min_length(&config),
-        social_layer_constants::user_name_min_length(),
-    );
-    assert_eq(
-        social_layer_config::user_name_max_length(&config),
-        social_layer_constants::user_name_max_length(),
-    );
-    assert_eq(
         social_layer_config::bio_min_length(&config),
         social_layer_constants::bio_min_length(),
     );
@@ -152,62 +144,6 @@ fun test_set_all_config_values() {
 }
 
 #[test]
-fun test_display_name_validation() {
-    let admin_address: address = @0xA;
-
-    let mut scenario = test_scenario::begin(admin_address);
-    social_layer_config::test_create_config(ctx(&mut scenario));
-
-    next_tx(&mut scenario, admin_address);
-    let config = test_scenario::take_shared<Config>(&scenario);
-
-    // Test valid display name
-    let valid_display_name = b"Valid Name".to_string();
-    social_layer_config::assert_display_name_length_is_valid(&config, &valid_display_name);
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
-}
-
-#[test]
-#[expected_failure(abort_code = social_layer_config::EDisplayNameTooShort)]
-fun test_display_name_too_short() {
-    let admin_address: address = @0xA;
-
-    let mut scenario = test_scenario::begin(admin_address);
-    social_layer_config::test_create_config(ctx(&mut scenario));
-
-    next_tx(&mut scenario, admin_address);
-    let config = test_scenario::take_shared<Config>(&scenario);
-
-    // Test display name too short
-    let short_display_name = b"ab".to_string();
-    social_layer_config::assert_display_name_length_is_valid(&config, &short_display_name);
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
-}
-
-#[test]
-#[expected_failure(abort_code = social_layer_config::EDisplayNameTooLong)]
-fun test_display_name_too_long() {
-    let admin_address: address = @0xA;
-
-    let mut scenario = test_scenario::begin(admin_address);
-    social_layer_config::test_create_config(ctx(&mut scenario));
-
-    next_tx(&mut scenario, admin_address);
-    let config = test_scenario::take_shared<Config>(&scenario);
-
-    // Test display name too long
-    let long_display_name = b"This is a very long display name that exceeds the maximum length".to_string();
-    social_layer_config::assert_display_name_length_is_valid(&config, &long_display_name);
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
-}
-
-#[test]
 fun test_bio_validation() {
     let admin_address: address = @0xA;
 
@@ -264,7 +200,7 @@ fun test_bio_too_long() {
 }
 
 #[test]
-fun test_user_name_validation() {
+fun test_display_name_validation() {
     let admin_address: address = @0xA;
 
     let mut scenario = test_scenario::begin(admin_address);
@@ -274,7 +210,7 @@ fun test_user_name_validation() {
     let config = test_scenario::take_shared<Config>(&scenario);
 
     // Test valid usernames
-    let valid_usernames = vector[
+    let valid_display_names = vector[
         b"validuser".to_string(),
         b"user123".to_string(),
         b"user-name".to_string(),
@@ -284,8 +220,8 @@ fun test_user_name_validation() {
     ];
 
     let mut i = 0;
-    while (i < valid_usernames.length()) {
-        social_layer_config::assert_user_name_is_valid(&config, &valid_usernames[i]);
+    while (i < valid_display_names.length()) {
+        social_layer_config::assert_display_name_length_is_valid(&config, &valid_display_names[i]);
         i = i + 1;
     };
 
@@ -294,8 +230,8 @@ fun test_user_name_validation() {
 }
 
 #[test]
-#[expected_failure(abort_code = social_layer_config::EUserNameTooShort)]
-fun test_user_name_too_short() {
+#[expected_failure(abort_code = social_layer_config::EDisplayNameTooShort)]
+fun test_display_name_too_short() {
     let admin_address: address = @0xA;
 
     let mut scenario = test_scenario::begin(admin_address);
@@ -306,15 +242,15 @@ fun test_user_name_too_short() {
 
     // Test username too short
     let short_username = b"ab".to_string();
-    social_layer_config::assert_user_name_is_valid(&config, &short_username);
+    social_layer_config::assert_display_name_length_is_valid(&config, &short_username);
 
     test_scenario::return_shared(config);
     test_scenario::end(scenario);
 }
 
 #[test]
-#[expected_failure(abort_code = social_layer_config::EUserNameTooLong)]
-fun test_user_name_too_long() {
+#[expected_failure(abort_code = social_layer_config::EDisplayNameTooLong)]
+fun test_display_name_too_long() {
     let admin_address: address = @0xA;
 
     let mut scenario = test_scenario::begin(admin_address);
@@ -324,16 +260,16 @@ fun test_user_name_too_long() {
     let config = test_scenario::take_shared<Config>(&scenario);
 
     // Test username too long
-    let long_username = b"verylongusername123456".to_string();
-    social_layer_config::assert_user_name_is_valid(&config, &long_username);
+    let long_username = b"verylongusername123456verylongusername123456verylongusername123456verylongusername123456verylongusername123456verylongusername123456verylongusername123456verylongusername123456verylongusername123456".to_string();
+    social_layer_config::assert_display_name_is_valid(&config, &long_username);
 
     test_scenario::return_shared(config);
     test_scenario::end(scenario);
 }
 
 #[test]
-#[expected_failure(abort_code = social_layer_config::EUserNameInvalidCharacter)]
-fun test_user_name_invalid_characters() {
+#[expected_failure(abort_code = social_layer_config::EDisplayNameInvalidCharacter)]
+fun test_display_name_invalid_characters() {
     let admin_address: address = @0xA;
 
     let mut scenario = test_scenario::begin(admin_address);
@@ -345,7 +281,7 @@ fun test_user_name_invalid_characters() {
     // Test usernames with invalid characters
     let invalid_usernames = vector[
         b"user@name".to_string(), // @ symbol
-        b"user_name".to_string(), // underscore
+        b"display_name".to_string(), // underscore
         b"user.name".to_string(), // period
         b"user name".to_string(), // space
         b"User".to_string(), // uppercase
@@ -356,7 +292,7 @@ fun test_user_name_invalid_characters() {
 
     let mut i = 0;
     while (i < invalid_usernames.length()) {
-        social_layer_config::assert_user_name_is_valid(&config, &invalid_usernames[i]);
+        social_layer_config::assert_display_name_is_valid(&config, &invalid_usernames[i]);
         i = i + 1;
     };
 

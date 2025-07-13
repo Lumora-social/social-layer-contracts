@@ -3,7 +3,6 @@ module suins_social_layer::social_layer_registry;
 use std::string::String;
 use sui::table::{Self, Table};
 use sui::types;
-use suins_social_layer::app::AdminCap;
 
 const ERecordAlreadyExists: u64 = 1;
 const ERecordDoesNotExist: u64 = 2;
@@ -11,7 +10,7 @@ const ETypeNotOneTimeWitness: u64 = 3;
 
 public struct Registry has key, store {
     id: UID,
-    registry: Table<String, ID>,
+    registry: Table<String, address>,
 }
 
 public struct SOCIAL_LAYER_REGISTRY has drop {}
@@ -29,31 +28,26 @@ public fun create_registry(otw: &SOCIAL_LAYER_REGISTRY, ctx: &mut TxContext): Re
     }
 }
 
-public fun has_record(self: &Registry, user_name: String): bool {
-    table::contains(&self.registry, user_name)
+public fun has_entry(self: &Registry, display_name: String): bool {
+    table::contains(&self.registry, display_name)
 }
 
-public fun get_record(self: &Registry, user_name: String): &ID {
-    table::borrow(&self.registry, user_name)
+public fun get_entry(self: &Registry, display_name: String): &address {
+    table::borrow(&self.registry, display_name)
 }
 
-public(package) fun add_record(self: &mut Registry, user_name: String, profile_id: ID) {
-    assert!(!table::contains(&self.registry, user_name), ERecordAlreadyExists);
-    table::add(&mut self.registry, user_name, profile_id);
+public(package) fun add_entry(
+    self: &mut Registry,
+    display_name: String,
+    profile_object_id: address,
+) {
+    assert!(!table::contains(&self.registry, display_name), ERecordAlreadyExists);
+    table::add(&mut self.registry, display_name, profile_object_id);
 }
 
-public(package) fun remove_record(self: &mut Registry, user_name: String) {
-    assert!(table::contains(&self.registry, user_name), ERecordDoesNotExist);
-    table::remove(&mut self.registry, user_name);
-}
-
-// Admin functions
-public fun add_record_admin(_: &AdminCap, self: &mut Registry, user_name: String, profile_id: ID) {
-    add_record(self, user_name, profile_id);
-}
-
-public fun remove_record_admin(_: &AdminCap, self: &mut Registry, user_name: String) {
-    remove_record(self, user_name);
+public(package) fun remove_entry(self: &mut Registry, display_name: String) {
+    assert!(table::contains(&self.registry, display_name), ERecordDoesNotExist);
+    table::remove(&mut self.registry, display_name);
 }
 
 #[test_only]

@@ -6,19 +6,24 @@ use sui::display;
 use sui::dynamic_field as df;
 use sui::event;
 use sui::package;
+use suins::domain::new;
+use suins::registry::has_record;
+use suins::suins::SuiNS;
+use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
-use suins_social_layer::social_layer_registry::{add_record, remove_record, has_record, Registry};
+use suins_social_layer::social_layer_registry::{Registry, has_entry, add_entry, remove_entry};
 
 #[error]
 const EArchivedProfile: u64 = 0;
 const ESenderNotOwner: u64 = 1;
-const EUserNameAlreadyExists: u64 = 2;
+const EProfileAlreadyExists: u64 = 2;
+const EDisplayNameNotMatching: u64 = 3;
+const EDisplayNameTaken: u64 = 4;
 
 public struct Profile has key, store {
     id: UID,
     owner: address,
     display_name: String,
-    user_name: String,
     display_image_blob_id: Option<String>,
     background_image_blob_id: Option<String>,
     walrus_site_id: Option<String>,
@@ -54,7 +59,6 @@ fun init(otw: PROFILE, ctx: &mut TxContext) {
 
 // === Events ===
 public struct DeleteProfileEvent has copy, drop {
-    user_name: String,
     owner: address,
     display_name: String,
     timestamp: u64,
@@ -62,7 +66,6 @@ public struct DeleteProfileEvent has copy, drop {
 
 public struct UnarchiveProfileEvent has copy, drop {
     profile_id: ID,
-    user_name: String,
     owner: address,
     display_name: String,
     timestamp: u64,
@@ -70,7 +73,6 @@ public struct UnarchiveProfileEvent has copy, drop {
 
 public struct ArchiveProfileEvent has copy, drop {
     profile_id: ID,
-    user_name: String,
     owner: address,
     display_name: String,
     timestamp: u64,
@@ -78,7 +80,6 @@ public struct ArchiveProfileEvent has copy, drop {
 
 public struct CreateProfileEvent has copy, drop {
     profile_id: ID,
-    user_name: String,
     owner: address,
     display_name: String,
     timestamp: u64,
@@ -91,7 +92,6 @@ public struct CreateProfileEvent has copy, drop {
 
 public struct UpdateProfileEvent has copy, drop {
     profile_id: ID,
-    user_name: String,
     owner: address,
     display_name: String,
     timestamp: u64,
@@ -104,7 +104,6 @@ public struct UpdateProfileEvent has copy, drop {
 
 public struct AddDfToProfileEvent<K: copy + drop + store, V: copy + drop> has copy, drop {
     profile_id: ID,
-    user_name: String,
     owner: address,
     df_key: K,
     df_value: V,
@@ -113,7 +112,6 @@ public struct AddDfToProfileEvent<K: copy + drop + store, V: copy + drop> has co
 
 public struct RemoveDfFromProfileEvent<K: copy + drop + store, V: store> has copy, drop {
     profile_id: ID,
-    user_name: String,
     owner: address,
     df_key: K,
     df_value: V,
@@ -124,11 +122,6 @@ public struct RemoveDfFromProfileEvent<K: copy + drop + store, V: store> has cop
 public fun display_name(self: &Profile): String {
     assert!(!self.is_archived, EArchivedProfile);
     self.display_name
-}
-
-public fun user_name(self: &Profile): String {
-    assert!(!self.is_archived, EArchivedProfile);
-    self.user_name
 }
 
 public fun url(self: &Profile): Option<String> {
@@ -178,7 +171,6 @@ public fun get_df<K: copy + drop + store, V: store + copy + drop>(
 fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
     event::emit(UpdateProfileEvent {
         profile_id: object::id(profile),
-        user_name: profile.user_name,
         owner: profile.owner,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
@@ -198,7 +190,6 @@ fun emit_add_df_to_profile_event<K: copy + drop + store, V: store + copy + drop>
 ): V {
     event::emit(AddDfToProfileEvent {
         profile_id: object::id(profile),
-        user_name: profile.user_name,
         owner: profile.owner,
         timestamp: clock::timestamp_ms(clock),
         df_key,
@@ -215,7 +206,6 @@ fun emit_remove_df_from_profile_event<K: copy + drop + store, V: store + copy + 
 ) {
     event::emit(RemoveDfFromProfileEvent {
         profile_id: object::id(profile),
-        user_name: profile.user_name,
         owner: profile.owner,
         timestamp: clock::timestamp_ms(clock),
         df_key,
@@ -411,7 +401,6 @@ public(package) fun archive_profile(
 
     event::emit(ArchiveProfileEvent {
         profile_id: object::id(profile),
-        user_name: profile.user_name,
         owner: profile.owner,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
@@ -432,7 +421,6 @@ public(package) fun unarchive_profile(
 
     event::emit(UnarchiveProfileEvent {
         profile_id: object::id(profile),
-        user_name: profile.user_name,
         owner: profile.owner,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
@@ -446,12 +434,11 @@ public(package) fun delete_profile(
     ctx: &TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
-    remove_record(registry, profile.user_name);
+    remove_entry(registry, profile.display_name);
 
     let Profile {
         id,
         display_name,
-        user_name,
         url: _,
         bio: _,
         is_archived: _,
@@ -464,7 +451,6 @@ public(package) fun delete_profile(
     } = profile;
 
     event::emit(DeleteProfileEvent {
-        user_name,
         owner,
         display_name,
         timestamp: clock::timestamp_ms(clock),
@@ -474,7 +460,71 @@ public(package) fun delete_profile(
 }
 
 public(package) fun create_profile(
-    user_name: String,
+    display_name: String,
+    url: Option<String>,
+    bio: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
+    config: &Config,
+    suins: &SuiNS,
+    registry: &mut Registry,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): Profile {
+    let mut display_name_with_sui = display_name;
+    std::string::append(
+        &mut display_name_with_sui,
+        b".sui".to_string(),
+    );
+
+    let domain = new(display_name_with_sui);
+    assert!(!has_record(suins.registry(), domain), EDisplayNameTaken);
+    create_profile_helper(
+        display_name,
+        url,
+        bio,
+        display_image_blob_id,
+        background_image_blob_id,
+        walrus_site_id,
+        config,
+        registry,
+        clock,
+        ctx,
+    )
+}
+
+public(package) fun create_profile_with_suins(
+    display_name: String,
+    url: Option<String>,
+    bio: Option<String>,
+    display_image_blob_id: Option<String>,
+    background_image_blob_id: Option<String>,
+    walrus_site_id: Option<String>,
+    suins_registration: &SuinsRegistration,
+    config: &Config,
+    registry: &mut Registry,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): Profile {
+    let expected_name = suins_registration.domain().label(1);
+    assert!(expected_name == display_name, EDisplayNameNotMatching);
+
+    create_profile_helper(
+        display_name,
+        url,
+        bio,
+        display_image_blob_id,
+        background_image_blob_id,
+        walrus_site_id,
+        config,
+        registry,
+        clock,
+        ctx,
+    )
+}
+
+public(package) fun create_profile_helper(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
@@ -487,17 +537,15 @@ public(package) fun create_profile(
     ctx: &mut TxContext,
 ): Profile {
     config::assert_interacting_with_most_up_to_date_package(config);
-    config::assert_user_name_is_valid(config, &user_name);
     config::assert_display_name_length_is_valid(config, &display_name);
     if (option::is_some(&bio)) {
         config::assert_bio_length_is_valid(config, option::borrow(&bio));
     };
-    assert!(!has_record(registry, user_name), EUserNameAlreadyExists);
+    assert!(!has_entry(registry, display_name), EProfileAlreadyExists);
 
     let profile = Profile {
         id: object::new(ctx),
         display_name,
-        user_name,
         url,
         bio,
         is_archived: false,
@@ -508,11 +556,12 @@ public(package) fun create_profile(
         walrus_site_id,
         owner: tx_context::sender(ctx),
     };
+    let profile_id = object::id(&profile);
+    let id_as_address = object::id_to_address(&profile_id);
+    add_entry(registry, display_name, id_as_address);
 
-    add_record(registry, user_name, object::id(&profile));
     event::emit(CreateProfileEvent {
         profile_id: object::id(&profile),
-        user_name: profile.user_name,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
         display_image_blob_id,

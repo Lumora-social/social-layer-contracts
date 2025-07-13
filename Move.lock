@@ -2,10 +2,11 @@
 
 [move]
 version = 3
-manifest_digest = "D95483F3AA97A097F21AFF844F2098C930F47A2A23C8235FC496A17D7BBC2CD9"
-deps_digest = "F8BBB0CCB2491CA29A3DF03D6F92277A4F3574266507ACD77214D37ECA3F3082"
+manifest_digest = "562C73A7B637DC670097EB58F65F827CA6EE2832D0394AB90C7A9E3B549426C3"
+deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
 dependencies = [
   { id = "Sui", name = "Sui" },
+  { id = "suins", name = "suins" },
 ]
 
 [[move.package]]
@@ -18,6 +19,14 @@ source = { git = "https://github.com/MystenLabs/sui.git", rev = "framework/mainn
 
 dependencies = [
   { id = "MoveStdlib", name = "MoveStdlib" },
+]
+
+[[move.package]]
+id = "suins"
+source = { git = "https://github.com/MystenLabs/suins-contracts", rev = "releases/core/4", subdir = "packages/suins" }
+
+dependencies = [
+  { id = "Sui", name = "Sui" },
 ]
 
 [move.toolchain-version]
@@ -35,12 +44,12 @@ published-version = "1"
 
 [env.testnet]
 chain-id = "4c78adac"
-original-published-id = "0xd492e219283e70200464d677d712f470d3ea99fe9c8bcb969f239511fa831bff"
-latest-published-id = "0xd492e219283e70200464d677d712f470d3ea99fe9c8bcb969f239511fa831bff"
+original-published-id = "0xf3ff258f7ad3208b8574fc22c178193fef43b4bac1a680d595faa86a678dda49"
+latest-published-id = "0xf3ff258f7ad3208b8574fc22c178193fef43b4bac1a680d595faa86a678dda49"
 published-version = "1"
 
 [env.testnet_3]
 chain-id = "4c78adac"
-original-published-id = "0x0000000000000000000000000000000000000000000000000000000000000000"
+original-published-id = "0x283f27dfd8a770c41c78b56372185830887b389182cd38121ebafad5e82cc1a3"
 latest-published-id = "0x24ba8d3ab7efa430289d760257b7aac147ab313c5bf0bee9c35c1d8bc013edb9"
 published-version = "1"

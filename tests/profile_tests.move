@@ -5,7 +5,8 @@ use sui::clock;
 use sui::dynamic_field as df;
 use sui::test_scenario::{Self, next_tx, ctx};
 use sui::test_utils::assert_eq;
-use suins_social_layer::profile::{Self, Profile};
+use suins_social_layer::profile;
+use suins_social_layer::profile_actions::delete_profile;
 use suins_social_layer::social_layer_config;
 use suins_social_layer::social_layer_registry;
 
@@ -16,24 +17,24 @@ fun test_profile_operations() {
 
     let mut scenario = test_scenario::begin(admin_address);
     social_layer_config::test_create_config(ctx(&mut scenario));
-    social_layer_registry::create_registry_for_testing(ctx(&mut scenario));
+    social_layer_registry::create_registry_for_testing((ctx(&mut scenario)));
+
+    next_tx(&mut scenario, admin_address);
+    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
 
     next_tx(&mut scenario, admin_address);
     let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
 
     // Test 1: Create profile
     next_tx(&mut scenario, user_address);
     let clock = clock::create_for_testing(ctx(&mut scenario));
-    let display_name = b"initial_name".to_string();
+    let display_name = b"display-name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let user_name = b"user-name".to_string();
-    suins_social_layer::profile_actions::create_profile(
-        user_name,
+    let mut profile = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
@@ -48,9 +49,7 @@ fun test_profile_operations() {
 
     // Test 2: Verify initial profile state
     next_tx(&mut scenario, user_address);
-    let mut profile = test_scenario::take_from_sender<Profile>(&scenario);
-    assert_eq(profile.user_name(), user_name);
-    assert_eq(profile.display_name(), b"initial_name".to_string());
+    assert_eq(profile.display_name(), b"display-name".to_string());
     assert_eq(profile.url(), option::some(b"initial_url".to_string()));
     assert_eq(profile.bio(), option::some(b"Initial bio".to_string()));
     assert_eq(profile.display_image_blob_id(), option::some(b"initial_image_url".to_string()));
@@ -202,7 +201,7 @@ fun test_profile_operations() {
 }
 
 #[test]
-#[expected_failure(abort_code = suins_social_layer::profile::EUserNameAlreadyExists)]
+#[expected_failure(abort_code = suins_social_layer::profile::EProfileAlreadyExists)]
 fun test_duplicate_profile_creation() {
     let user_address: address = @0xA;
     let admin_address: address = @0xB;
@@ -218,17 +217,15 @@ fun test_duplicate_profile_creation() {
     // Test 1: Create profile
     next_tx(&mut scenario, user_address);
     let clock = clock::create_for_testing(ctx(&mut scenario));
-    let display_name = b"initial_name".to_string();
+    let display_name = b"display-name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let user_name = b"user-name".to_string();
 
     // Create first profile
-    suins_social_layer::profile_actions::create_profile(
-        user_name,
+    let profile1 = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
@@ -243,8 +240,7 @@ fun test_duplicate_profile_creation() {
 
     // Try to create duplicate profile
     next_tx(&mut scenario, user_address);
-    suins_social_layer::profile_actions::create_profile(
-        b"user-name".to_string(),
+    let profile2 = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
@@ -256,6 +252,8 @@ fun test_duplicate_profile_creation() {
         &clock,
         test_scenario::ctx(&mut scenario),
     );
+    delete_profile(profile1, &mut registry, &clock, test_scenario::ctx(&mut scenario));
+    delete_profile(profile2, &mut registry, &clock, test_scenario::ctx(&mut scenario));
 
     clock.destroy_for_testing();
     next_tx(&mut scenario, admin_address);
@@ -271,25 +269,25 @@ fun test_dynamic_fields() {
 
     let mut scenario = test_scenario::begin(admin_address);
     social_layer_config::test_create_config(ctx(&mut scenario));
-    social_layer_registry::create_registry_for_testing(ctx(&mut scenario));
+    social_layer_registry::create_registry_for_testing((ctx(&mut scenario)));
+
+    next_tx(&mut scenario, admin_address);
+    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
 
     next_tx(&mut scenario, admin_address);
     let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
 
     // Test 1: Create profile
     next_tx(&mut scenario, user_address);
     let clock = clock::create_for_testing(ctx(&mut scenario));
-    let display_name = b"initial_name".to_string();
+    let display_name = b"display-name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-    let user_name = b"user-name".to_string();
 
-    suins_social_layer::profile_actions::create_profile(
-        user_name,
+    let mut profile = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
@@ -301,8 +299,6 @@ fun test_dynamic_fields() {
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    next_tx(&mut scenario, user_address);
-    let mut profile = test_scenario::take_from_sender<Profile>(&scenario);
 
     let mut df_key = b"test_df_key".to_string();
     let mut df_value = b"test_df_value".to_string();
