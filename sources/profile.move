@@ -11,7 +11,7 @@ use suins::registry::has_record;
 use suins::suins::SuiNS;
 use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
-use suins_social_layer::social_layer_registry::{Registry, has_entry, add_entry, remove_entry};
+use suins_social_layer::social_layer_registry::{Self, Registry};
 
 #[error]
 const EArchivedProfile: u64 = 0;
@@ -19,6 +19,7 @@ const ESenderNotOwner: u64 = 1;
 const EProfileAlreadyExists: u64 = 2;
 const EDisplayNameNotMatching: u64 = 3;
 const EDisplayNameTaken: u64 = 4;
+const EDisplayNameAlreadyTaken: u64 = 5;
 
 public struct Profile has key, store {
     id: UID,
@@ -217,17 +218,49 @@ fun emit_remove_df_from_profile_event<K: copy + drop + store, V: store + copy + 
 public(package) fun set_display_name(
     profile: &mut Profile,
     display_name: String,
+    suins: &SuiNS,
+    registry: &mut Registry,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    assert_display_name_not_taken(display_name, suins);
+    set_display_name_helper(profile, display_name, registry, config, clock, ctx);
+}
+
+public(package) fun set_display_name_with_suins(
+    profile: &mut Profile,
+    display_name: String,
+    suins_registration: &SuinsRegistration,
+    registry: &mut Registry,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    assert_display_name_matches_with_suins(display_name, suins_registration);
+    set_display_name_helper(profile, display_name, registry, config, clock, ctx);
+}
+
+public(package) fun set_display_name_helper(
+    profile: &mut Profile,
+    display_name: String,
+    registry: &mut Registry,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
-    config::assert_display_name_length_is_valid(config, &display_name);
+    config::assert_display_name_is_valid(config, &display_name);
+    assert!(
+        !social_layer_registry::get_entry_display_name_registry(registry, display_name),
+        EDisplayNameAlreadyTaken,
+    );
 
+    social_layer_registry::remove_entry_display_name_registry(registry, profile.display_name);
     profile.display_name = display_name;
     profile.updated_at = clock::timestamp_ms(clock);
-
+    social_layer_registry::add_entry_display_name_registry(registry, display_name);
     emit_update_profile_event(profile, clock);
 }
 
@@ -434,7 +467,7 @@ public(package) fun delete_profile(
     ctx: &TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
-    remove_entry(registry, profile.display_name);
+    social_layer_registry::remove_entries(registry, profile.display_name, profile.owner);
 
     let Profile {
         id,
@@ -472,14 +505,7 @@ public(package) fun create_profile(
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
-    let mut display_name_with_sui = display_name;
-    std::string::append(
-        &mut display_name_with_sui,
-        b".sui".to_string(),
-    );
-
-    let domain = new(display_name_with_sui);
-    assert!(!has_record(suins.registry(), domain), EDisplayNameTaken);
+    assert_display_name_not_taken(display_name, suins);
     create_profile_helper(
         display_name,
         url,
@@ -507,9 +533,7 @@ public(package) fun create_profile_with_suins(
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
-    let expected_name = suins_registration.domain().label(1);
-    assert!(expected_name == display_name, EDisplayNameNotMatching);
-
+    assert_display_name_matches_with_suins(display_name, suins_registration);
     create_profile_helper(
         display_name,
         url,
@@ -537,11 +561,18 @@ public(package) fun create_profile_helper(
     ctx: &mut TxContext,
 ): Profile {
     config::assert_interacting_with_most_up_to_date_package(config);
-    config::assert_display_name_length_is_valid(config, &display_name);
+    config::assert_display_name_is_valid(config, &display_name);
     if (option::is_some(&bio)) {
         config::assert_bio_length_is_valid(config, option::borrow(&bio));
     };
-    assert!(!has_entry(registry, display_name), EProfileAlreadyExists);
+    assert!(
+        !social_layer_registry::get_entry_display_name_registry(registry, display_name),
+        EDisplayNameAlreadyTaken,
+    );
+    assert!(
+        !social_layer_registry::get_entry_address_registry(registry, tx_context::sender(ctx)),
+        EProfileAlreadyExists,
+    );
 
     let profile = Profile {
         id: object::new(ctx),
@@ -556,9 +587,7 @@ public(package) fun create_profile_helper(
         walrus_site_id,
         owner: tx_context::sender(ctx),
     };
-    let profile_id = object::id(&profile);
-    let id_as_address = object::id_to_address(&profile_id);
-    add_entry(registry, display_name, id_as_address);
+    social_layer_registry::add_entries(registry, display_name, profile.owner);
 
     event::emit(CreateProfileEvent {
         profile_id: object::id(&profile),
@@ -614,4 +643,22 @@ public(package) fun remove_df_from_profile_no_event<K: copy + drop + store, V: s
     let df_value: V = df::remove(&mut profile.id, df_key);
     profile.updated_at = clock::timestamp_ms(clock);
     df_value
+}
+
+fun assert_display_name_not_taken(display_name: String, suins: &SuiNS) {
+    let mut display_name_with_sui = display_name;
+    std::string::append(
+        &mut display_name_with_sui,
+        b".sui".to_string(),
+    );
+    let domain = new(display_name_with_sui);
+    assert!(!has_record(suins.registry(), domain), EDisplayNameTaken);
+}
+
+fun assert_display_name_matches_with_suins(
+    display_name: String,
+    suins_registration: &SuinsRegistration,
+) {
+    let expected_name = suins_registration.domain().label(1);
+    assert!(expected_name == display_name, EDisplayNameNotMatching);
 }

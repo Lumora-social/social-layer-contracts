@@ -72,6 +72,8 @@ public entry fun create_profile_with_suins(
 public entry fun set_display_name(
     profile: &mut Profile,
     display_name: String,
+    suins: &SuiNS,
+    registry: &mut Registry,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
@@ -79,6 +81,28 @@ public entry fun set_display_name(
     profile::set_display_name(
         profile,
         display_name,
+        suins,
+        registry,
+        config,
+        clock,
+        ctx,
+    );
+}
+
+public entry fun set_display_name_with_suins(
+    profile: &mut Profile,
+    display_name: String,
+    suins_registration: &SuinsRegistration,
+    registry: &mut Registry,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::set_display_name_with_suins(
+        profile,
+        display_name,
+        suins_registration,
+        registry,
         config,
         clock,
         ctx,
