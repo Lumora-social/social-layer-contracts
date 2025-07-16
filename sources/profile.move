@@ -36,7 +36,6 @@ public struct Profile has key, store {
     updated_at: u64,
 }
 
-// OTW for display.
 public struct PROFILE has drop {}
 
 fun init(otw: PROFILE, ctx: &mut TxContext) {
@@ -149,6 +148,11 @@ public fun wallet_addresses(self: &Profile): VecMap<String, String> {
     }
 }
 
+public fun owner(self: &Profile): address {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.owner
+}
+
 public fun is_archived(self: &Profile): bool {
     self.is_archived
 }
@@ -157,6 +161,7 @@ public fun uid(self: &Profile): &UID {
     &self.id
 }
 
+// TODO: Dangerous?
 public fun uid_mut(self: &mut Profile): &mut UID {
     &mut self.id
 }

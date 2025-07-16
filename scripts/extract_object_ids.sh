@@ -53,18 +53,6 @@ fi
 
 echo ""
 
-# Extract Publisher object ID
-echo "Publisher Object ID:"
-RAW_PUBLISHER_ID=$(grep -B 5 "Publisher" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
-PUBLISHER_ID=$(clean_id "$RAW_PUBLISHER_ID")
-if [ -n "$PUBLISHER_ID" ]; then
-    echo "  $PUBLISHER_ID"
-else
-    echo "  Not found"
-fi
-
-echo ""
-
 # Extract Package ID
 echo "Package ID:"
 RAW_PACKAGE_ID=$(grep "PackageID:" "scripts/publish_output_$environment.txt" | head -1 | sed 's/.*PackageID: //')
@@ -82,7 +70,6 @@ echo "Summary:"
 echo "AdminCap: $ADMIN_CAP_ID"
 echo "Registry: $REGISTRY_ID"
 echo "Config:   $CONFIG_ID"
-echo "Publisher: $PUBLISHER_ID"
 echo "Package:  $PACKAGE_ID"
 
 echo ""
@@ -118,13 +105,11 @@ if [ "$environment" == "testnet" ] || [ "$environment" == "mainnet" ]; then
     contract_id_line=$(awk "NR > $start_line && NR < $end_line && /contractId:/ {print NR; exit}" "$CONSTANTS_FILE")
     config_id_line=$(awk "NR > $start_line && NR < $end_line && /configId:/ {print NR; exit}" "$CONSTANTS_FILE")
     registry_id_line=$(awk "NR > $start_line && NR < $end_line && /registryId:/ {print NR; exit}" "$CONSTANTS_FILE")
-    publisher_id_line=$(awk "NR > $start_line && NR < $end_line && /publisherId:/ {print NR; exit}" "$CONSTANTS_FILE")
 
     # The actual values are on the next line
     contract_id_value_line=$((contract_id_line + 1))
     config_id_value_line=$((config_id_line + 1))
     registry_id_value_line=$((registry_id_line + 1))
-    publisher_id_value_line=$((publisher_id_line + 1))
 
     # Update the file
     sedi "${contract_id_value_line}s|'.*'|      '$PACKAGE_ID'|" "$CONSTANTS_FILE"
@@ -135,9 +120,6 @@ if [ "$environment" == "testnet" ] || [ "$environment" == "mainnet" ]; then
 
     sedi "${registry_id_value_line}s|'.*'|      '$REGISTRY_ID'|" "$CONSTANTS_FILE"
     echo "Updated ${environment} registryId to $REGISTRY_ID"
-
-    sedi "${publisher_id_value_line}s|'.*'|      '$PUBLISHER_ID'|" "$CONSTANTS_FILE"
-    echo "Updated ${environment} publisherId to $PUBLISHER_ID"
 else
     echo "Skipping constants update: environment '$environment' is not 'testnet' or 'mainnet'."
 fi
