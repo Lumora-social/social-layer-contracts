@@ -201,7 +201,7 @@ fun test_profile_operations() {
 }
 
 #[test]
-#[expected_failure(abort_code = suins_social_layer::profile::EProfileAlreadyExists)]
+#[expected_failure(abort_code = suins_social_layer::profile::EDisplayNameAlreadyTaken)]
 fun test_duplicate_profile_creation() {
     let user_address: address = @0xA;
     let admin_address: address = @0xB;

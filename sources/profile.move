@@ -43,10 +43,10 @@ fun init(otw: PROFILE, ctx: &mut TxContext) {
     let mut display = display::new<Profile>(&publisher, ctx);
 
     // TODO: change to the actual walrus app url
-    // display.add(
-    //     b"link".to_string(),
-    //     b"https://mock.walrus.app/0x{walrus_site_id}".to_string(),
-    // );
+    display.add(
+        b"link".to_string(),
+        b"https://mock.walrus.app/0x{walrus_site_id}".to_string(),
+    );
 
     display.add(
         b"image_url".to_string(),
@@ -150,6 +150,11 @@ public fun walrus_site_id(self: &Profile): Option<String> {
     self.walrus_site_id
 }
 
+public fun owner(self: &Profile): address {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.owner
+}
+
 public fun is_archived(self: &Profile): bool {
     self.is_archived
 }
@@ -158,6 +163,7 @@ public fun uid(self: &Profile): &UID {
     &self.id
 }
 
+// TODO: Dangerous?
 public fun uid_mut(self: &mut Profile): &mut UID {
     &mut self.id
 }
