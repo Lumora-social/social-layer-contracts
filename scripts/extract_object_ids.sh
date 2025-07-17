@@ -53,30 +53,6 @@ fi
 
 echo ""
 
-# Extract BlockList object ID
-echo "BlockList Object ID:"
-RAW_BLOCKLIST_ID=$(grep -B 5 "BlockList" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
-BLOCKLIST_ID=$(clean_id "$RAW_BLOCKLIST_ID")
-if [ -n "$BLOCKLIST_ID" ]; then
-    echo "  $BLOCKLIST_ID"
-else
-    echo "  Not found"
-fi
-
-echo ""
-
-# Extract Following object ID
-echo "Following Object ID:"
-RAW_FOLLOWING_ID=$(grep -B 5 "Following " "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
-FOLLOWING_ID=$(clean_id "$RAW_FOLLOWING_ID")
-if [ -n "$FOLLOWING_ID" ]; then
-    echo "  $FOLLOWING_ID"
-else
-    echo "  Not found"
-fi
-
-echo ""
-
 # Extract Package ID
 echo "Package ID:"
 RAW_PACKAGE_ID=$(grep "PackageID:" "scripts/publish_output_$environment.txt" | head -1 | sed 's/.*PackageID: //')
@@ -94,8 +70,6 @@ echo "Summary:"
 echo "AdminCap: $ADMIN_CAP_ID"
 echo "Registry: $REGISTRY_ID"
 echo "Config:   $CONFIG_ID"
-echo "BlockList: $BLOCKLIST_ID"
-echo "Following: $FOLLOWING_ID"
 echo "Package:  $PACKAGE_ID"
 
 echo ""
@@ -131,15 +105,11 @@ if [ "$environment" == "testnet" ] || [ "$environment" == "mainnet" ]; then
     contract_id_line=$(awk "NR > $start_line && NR < $end_line && /contractId:/ {print NR; exit}" "$CONSTANTS_FILE")
     config_id_line=$(awk "NR > $start_line && NR < $end_line && /configId:/ {print NR; exit}" "$CONSTANTS_FILE")
     registry_id_line=$(awk "NR > $start_line && NR < $end_line && /registryId:/ {print NR; exit}" "$CONSTANTS_FILE")
-    following_id_line=$(awk "NR > $start_line && NR < $end_line && /followingId:/ {print NR; exit}" "$CONSTANTS_FILE")
-    blocklist_id_line=$(awk "NR > $start_line && NR < $end_line && /blocklistId:/ {print NR; exit}" "$CONSTANTS_FILE")
 
     # The actual values are on the next line
     contract_id_value_line=$((contract_id_line + 1))
     config_id_value_line=$((config_id_line + 1))
     registry_id_value_line=$((registry_id_line + 1))
-    following_id_value_line=$((following_id_line + 1))
-    blocklist_id_value_line=$((blocklist_id_line + 1))
 
     # Update the file
     sedi "${contract_id_value_line}s|'.*'|      '$PACKAGE_ID'|" "$CONSTANTS_FILE"
@@ -150,12 +120,6 @@ if [ "$environment" == "testnet" ] || [ "$environment" == "mainnet" ]; then
 
     sedi "${registry_id_value_line}s|'.*'|      '$REGISTRY_ID'|" "$CONSTANTS_FILE"
     echo "Updated ${environment} registryId to $REGISTRY_ID"
-
-    sedi "${following_id_value_line}s|'.*'|      '$FOLLOWING_ID'|" "$CONSTANTS_FILE"
-    echo "Updated ${environment} followingId to $FOLLOWING_ID"
-
-    sedi "${blocklist_id_value_line}s|'.*'|      '$BLOCKLIST_ID'|" "$CONSTANTS_FILE"
-    echo "Updated ${environment} blocklistId to $BLOCKLIST_ID"
 else
     echo "Skipping constants update: environment '$environment' is not 'testnet' or 'mainnet'."
 fi
