@@ -2,10 +2,9 @@ module suins_social_layer::profile;
 
 use std::string::String;
 use sui::clock::{Self, Clock};
-use sui::display;
 use sui::dynamic_field as df;
 use sui::event;
-use sui::package;
+use sui::vec_map::VecMap;
 use suins::domain::new;
 use suins::registry::has_record;
 use suins::suins::SuiNS;
@@ -20,16 +19,19 @@ const EProfileAlreadyExists: u64 = 2;
 const EDisplayNameNotMatching: u64 = 3;
 const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
+const EWalletKeyAlreadyExists: u64 = 6;
+const EWalletKeyDoesNotExist: u64 = 7;
 
 public struct Profile has key, store {
     id: UID,
     owner: address,
     display_name: String,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
     url: Option<String>,
     bio: Option<String>,
+    wallet_addresses: Option<VecMap<String, String>>,
     is_archived: bool,
     created_at: u64,
     updated_at: u64,
@@ -38,19 +40,14 @@ public struct Profile has key, store {
 // OTW for display.
 public struct PROFILE has drop {}
 
+// TODO: Add more fields to display
 fun init(otw: PROFILE, ctx: &mut TxContext) {
-    let publisher = package::claim(otw, ctx);
-    let mut display = display::new<Profile>(&publisher, ctx);
-
-    // TODO: change to the actual walrus app url
-    // display.add(
-    //     b"link".to_string(),
-    //     b"https://mock.walrus.app/0x{walrus_site_id}".to_string(),
-    // );
+    let publisher = sui::package::claim(otw, ctx);
+    let mut display = sui::display::new<Profile>(&publisher, ctx);
 
     display.add(
         b"image_url".to_string(),
-        b"https://aggregator.walrus-testnet.walrus.space/v1/blobs/{display_image_blob_id}".to_string(),
+        b"{display_image_url}".to_string(),
     );
     display.update_version();
 
@@ -84,9 +81,10 @@ public struct CreateProfileEvent has copy, drop {
     owner: address,
     display_name: String,
     timestamp: u64,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
+    wallet_addresses: VecMap<String, String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -96,9 +94,10 @@ public struct UpdateProfileEvent has copy, drop {
     owner: address,
     display_name: String,
     timestamp: u64,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
+    wallet_addresses: VecMap<String, String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -135,14 +134,23 @@ public fun bio(self: &Profile): Option<String> {
     self.bio
 }
 
-public fun display_image_blob_id(self: &Profile): Option<String> {
+public fun display_image_url(self: &Profile): Option<String> {
     assert!(!self.is_archived, EArchivedProfile);
-    self.display_image_blob_id
+    self.display_image_url
 }
 
-public fun background_image_blob_id(self: &Profile): Option<String> {
+public fun background_image_url(self: &Profile): Option<String> {
     assert!(!self.is_archived, EArchivedProfile);
-    self.background_image_blob_id
+    self.background_image_url
+}
+
+public fun wallet_addresses(self: &Profile): VecMap<String, String> {
+    assert!(!self.is_archived, EArchivedProfile);
+    if (option::is_some(&self.wallet_addresses)) {
+        *option::borrow(&self.wallet_addresses)
+    } else {
+        sui::vec_map::empty<String, String>()
+    }
 }
 
 public fun walrus_site_id(self: &Profile): Option<String> {
@@ -175,9 +183,14 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
         owner: profile.owner,
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
-        display_image_blob_id: profile.display_image_blob_id,
-        background_image_blob_id: profile.background_image_blob_id,
+        display_image_url: profile.display_image_url,
+        background_image_url: profile.background_image_url,
         walrus_site_id: profile.walrus_site_id,
+        wallet_addresses: if (option::is_some(&profile.wallet_addresses)) {
+            *option::borrow(&profile.wallet_addresses)
+        } else {
+            sui::vec_map::empty<String, String>()
+        },
         url: profile.url,
         bio: profile.bio,
     });
@@ -296,9 +309,9 @@ public(package) fun remove_bio(
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun set_display_image_blob_id(
+public(package) fun set_display_image_url(
     profile: &mut Profile,
-    display_image_blob_id: String,
+    display_image_url: String,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
@@ -306,13 +319,13 @@ public(package) fun set_display_image_blob_id(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    profile.display_image_blob_id = option::some(display_image_blob_id);
+    profile.display_image_url = option::some(display_image_url);
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun remove_display_image_blob_id(
+public(package) fun remove_display_image_url(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
@@ -321,15 +334,15 @@ public(package) fun remove_display_image_blob_id(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    profile.display_image_blob_id = option::none();
+    profile.display_image_url = option::none();
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun set_background_image_blob_id(
+public(package) fun set_background_image_url(
     profile: &mut Profile,
-    background_image_blob_id: String,
+    background_image_url: String,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
@@ -337,13 +350,13 @@ public(package) fun set_background_image_blob_id(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    profile.background_image_blob_id = option::some(background_image_blob_id);
+    profile.background_image_url = option::some(background_image_url);
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun remove_background_image_blob_id(
+public(package) fun remove_background_image_url(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
@@ -352,7 +365,7 @@ public(package) fun remove_background_image_blob_id(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    profile.background_image_blob_id = option::none();
+    profile.background_image_url = option::none();
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -420,6 +433,74 @@ public(package) fun remove_walrus_site_id(
     emit_update_profile_event(profile, clock);
 }
 
+public(package) fun add_wallet_address(
+    profile: &mut Profile,
+    network: String,
+    address: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+    config::assert_wallet_key_is_allowed(config, &network);
+
+    if (option::is_some(&profile.wallet_addresses)) {
+        let wallet_addresses = option::borrow_mut(&mut profile.wallet_addresses);
+        assert!(!sui::vec_map::contains(wallet_addresses, &network), EWalletKeyAlreadyExists);
+        sui::vec_map::insert(wallet_addresses, network, address);
+    } else {
+        let mut wallet_addresses = sui::vec_map::empty<String, String>();
+        sui::vec_map::insert(&mut wallet_addresses, network, address);
+        profile.wallet_addresses = option::some(wallet_addresses);
+    };
+
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
+public(package) fun update_wallet_address(
+    profile: &mut Profile,
+    network: String,
+    address: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+    config::assert_wallet_key_is_allowed(config, &network);
+    assert!(option::is_some(&profile.wallet_addresses), EWalletKeyDoesNotExist);
+
+    let wallet_addresses = option::borrow_mut(&mut profile.wallet_addresses);
+    assert!(sui::vec_map::contains(wallet_addresses, &network), EWalletKeyDoesNotExist);
+
+    sui::vec_map::remove(wallet_addresses, &network);
+    sui::vec_map::insert(wallet_addresses, network, address);
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
+public(package) fun remove_wallet_address(
+    profile: &mut Profile,
+    network: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+    assert!(option::is_some(&profile.wallet_addresses), EWalletKeyDoesNotExist);
+
+    let wallet_addresses = option::borrow_mut(&mut profile.wallet_addresses);
+    sui::vec_map::remove(wallet_addresses, &network);
+    profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
+}
+
 public(package) fun archive_profile(
     profile: &mut Profile,
     config: &Config,
@@ -477,9 +558,10 @@ public(package) fun delete_profile(
         is_archived: _,
         created_at: _,
         updated_at: _,
-        display_image_blob_id: _,
-        background_image_blob_id: _,
+        display_image_url: _,
+        background_image_url: _,
         walrus_site_id: _,
+        wallet_addresses: _,
         owner,
     } = profile;
 
@@ -496,8 +578,8 @@ public(package) fun create_profile(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
     config: &Config,
     suins: &SuiNS,
@@ -510,8 +592,8 @@ public(package) fun create_profile(
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         config,
         registry,
@@ -524,8 +606,8 @@ public(package) fun create_profile_with_suins(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
@@ -534,12 +616,13 @@ public(package) fun create_profile_with_suins(
     ctx: &mut TxContext,
 ): Profile {
     assert_display_name_matches_with_suins(display_name, suins_registration);
+    suins_registration.uid();
     create_profile_helper(
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         config,
         registry,
@@ -552,8 +635,8 @@ public(package) fun create_profile_helper(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
     config: &Config,
     registry: &mut Registry,
@@ -582,9 +665,10 @@ public(package) fun create_profile_helper(
         is_archived: false,
         created_at: clock::timestamp_ms(clock),
         updated_at: clock::timestamp_ms(clock),
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
+        wallet_addresses: option::none(),
         owner: tx_context::sender(ctx),
     };
     social_layer_registry::add_entries(registry, display_name, profile.owner);
@@ -593,11 +677,12 @@ public(package) fun create_profile_helper(
         profile_id: object::id(&profile),
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         bio,
         url,
+        wallet_addresses: sui::vec_map::empty<String, String>(),
         owner: tx_context::sender(ctx),
     });
 

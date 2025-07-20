@@ -13,8 +13,8 @@ public entry fun create_profile(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
     config: &Config,
     suins: &SuiNS,
@@ -26,8 +26,8 @@ public entry fun create_profile(
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         config,
         suins,
@@ -43,8 +43,8 @@ public entry fun create_profile_with_suins(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
-    display_image_blob_id: Option<String>,
-    background_image_blob_id: Option<String>,
+    display_image_url: Option<String>,
+    background_image_url: Option<String>,
     walrus_site_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
@@ -56,8 +56,8 @@ public entry fun create_profile_with_suins(
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         suins_registration,
         config,
@@ -139,29 +139,29 @@ public entry fun remove_bio(
     )
 }
 
-public entry fun set_display_image_blob_id(
+public entry fun set_display_image_url(
     profile: &mut Profile,
-    display_image_blob_id: String,
+    display_image_url: String,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::set_display_image_blob_id(
+    profile::set_display_image_url(
         profile,
-        display_image_blob_id,
+        display_image_url,
         config,
         clock,
         ctx,
     )
 }
 
-public entry fun remove_display_image_blob_id(
+public entry fun remove_display_image_url(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::remove_display_image_blob_id(
+    profile::remove_display_image_url(
         profile,
         config,
         clock,
@@ -169,29 +169,29 @@ public entry fun remove_display_image_blob_id(
     )
 }
 
-public entry fun set_background_image_blob_id(
+public entry fun set_background_image_url(
     profile: &mut Profile,
-    background_image_blob_id: String,
+    background_image_url: String,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::set_background_image_blob_id(
+    profile::set_background_image_url(
         profile,
-        background_image_blob_id,
+        background_image_url,
         config,
         clock,
         ctx,
     )
 }
 
-public entry fun remove_background_image_blob_id(
+public entry fun remove_background_image_url(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::remove_background_image_blob_id(
+    profile::remove_background_image_url(
         profile,
         config,
         clock,
@@ -253,6 +253,58 @@ public entry fun remove_walrus_site_id(
 ) {
     profile::remove_walrus_site_id(
         profile,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun add_wallet_address(
+    profile: &mut Profile,
+    network: String,
+    address: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::add_wallet_address(
+        profile,
+        network,
+        address,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun update_wallet_address(
+    profile: &mut Profile,
+    network: String,
+    address: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::update_wallet_address(
+        profile,
+        network,
+        address,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+public entry fun remove_wallet_address(
+    profile: &mut Profile,
+    network: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile::remove_wallet_address(
+        profile,
+        network,
         config,
         clock,
         ctx,

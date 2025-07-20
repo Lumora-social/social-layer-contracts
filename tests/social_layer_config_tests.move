@@ -1,5 +1,6 @@
 module suins_social_layer::social_layer_config_tests;
 
+use std::string::String;
 use sui::test_scenario::{Self, next_tx, ctx};
 use sui::test_utils::assert_eq;
 use suins_social_layer::app::AdminCap;
@@ -391,6 +392,284 @@ fun test_config_version_validation() {
     // Test that current version is valid
     social_layer_config::assert_interacting_with_most_up_to_date_package(&config);
 
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_wallet_keys_initialization() {
+    let admin_address: address = @0xA;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    social_layer_config::test_create_config(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let config = test_scenario::take_shared<Config>(&scenario);
+
+    // Test that initial wallet keys are set correctly
+    let wallet_keys = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys), 3);
+    assert_eq(*vector::borrow(wallet_keys, 0), b"SOL".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 1), b"ETH".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 2), b"BTC".to_string());
+
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_set_allowed_wallet_keys() {
+    let admin_address: address = @0xA;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    suins_social_layer::app::test_init(ctx(&mut scenario));
+    social_layer_config::test_create_config(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
+    let mut config = test_scenario::take_shared<Config>(&scenario);
+
+    // Assign config manager
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        admin_address,
+        ctx(&mut scenario),
+    );
+    test_scenario::return_to_sender(&scenario, admin_cap);
+
+    next_tx(&mut scenario, admin_address);
+    let config_manager_cap = test_scenario::take_from_sender<ConfigManagerCap>(&scenario);
+
+    // Set new wallet keys
+    let new_wallet_keys = vector[
+        b"SOL".to_string(),
+        b"ETH".to_string(),
+        b"BTC".to_string(),
+        b"ADA".to_string(),
+        b"DOT".to_string(),
+    ];
+    social_layer_config::set_allowed_wallet_keys(
+        &config_manager_cap,
+        &mut config,
+        new_wallet_keys,
+        ctx(&mut scenario),
+    );
+
+    // Verify wallet keys were updated
+    let wallet_keys = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys), 5);
+    assert_eq(*vector::borrow(wallet_keys, 0), b"SOL".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 1), b"ETH".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 2), b"BTC".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 3), b"ADA".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 4), b"DOT".to_string());
+
+    test_scenario::return_to_sender(&scenario, config_manager_cap);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_add_allowed_wallet_key() {
+    let admin_address: address = @0xA;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    suins_social_layer::app::test_init(ctx(&mut scenario));
+    social_layer_config::test_create_config(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
+    let mut config = test_scenario::take_shared<Config>(&scenario);
+
+    // Assign config manager
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        admin_address,
+        ctx(&mut scenario),
+    );
+    test_scenario::return_to_sender(&scenario, admin_cap);
+
+    next_tx(&mut scenario, admin_address);
+    let config_manager_cap = test_scenario::take_from_sender<ConfigManagerCap>(&scenario);
+
+    // Add new wallet key
+    social_layer_config::add_allowed_wallet_key(
+        &config_manager_cap,
+        &mut config,
+        b"ADA".to_string(),
+        ctx(&mut scenario),
+    );
+
+    // Verify wallet key was added
+    let wallet_keys = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys), 4);
+    assert_eq(*vector::borrow(wallet_keys, 3), b"ADA".to_string());
+
+    // Add another wallet key
+    social_layer_config::add_allowed_wallet_key(
+        &config_manager_cap,
+        &mut config,
+        b"DOT".to_string(),
+        ctx(&mut scenario),
+    );
+
+    // Verify second wallet key was added
+    let wallet_keys_updated = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys_updated), 5);
+    assert_eq(*vector::borrow(wallet_keys_updated, 4), b"DOT".to_string());
+
+    test_scenario::return_to_sender(&scenario, config_manager_cap);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_remove_allowed_wallet_key() {
+    let admin_address: address = @0xA;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    suins_social_layer::app::test_init(ctx(&mut scenario));
+    social_layer_config::test_create_config(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
+    let mut config = test_scenario::take_shared<Config>(&scenario);
+
+    // Assign config manager
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        admin_address,
+        ctx(&mut scenario),
+    );
+    test_scenario::return_to_sender(&scenario, admin_cap);
+
+    next_tx(&mut scenario, admin_address);
+    let config_manager_cap = test_scenario::take_from_sender<ConfigManagerCap>(&scenario);
+
+    // Remove existing wallet key
+    let removed = social_layer_config::remove_allowed_wallet_key(
+        &config_manager_cap,
+        &mut config,
+        b"ETH".to_string(),
+        ctx(&mut scenario),
+    );
+
+    // Verify wallet key was removed
+    assert_eq(removed, true);
+    let wallet_keys = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys), 2);
+    assert_eq(*vector::borrow(wallet_keys, 0), b"SOL".to_string());
+    assert_eq(*vector::borrow(wallet_keys, 1), b"BTC".to_string());
+
+    // Try to remove non-existent wallet key
+    let removed_nonexistent = social_layer_config::remove_allowed_wallet_key(
+        &config_manager_cap,
+        &mut config,
+        b"ADA".to_string(),
+        ctx(&mut scenario),
+    );
+
+    // Verify removal failed for non-existent key
+    assert_eq(removed_nonexistent, false);
+    let wallet_keys_unchanged = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys_unchanged), 2);
+
+    test_scenario::return_to_sender(&scenario, config_manager_cap);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+
+#[test]
+#[expected_failure(abort_code = social_layer_config::EAddressIsNotConfigManager)]
+fun test_unauthorized_wallet_key_operations() {
+    let admin_address: address = @0xA;
+    let unauthorized_address: address = @0xB;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    suins_social_layer::app::test_init(ctx(&mut scenario));
+    social_layer_config::test_create_config(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
+    let mut config = test_scenario::take_shared<Config>(&scenario);
+
+    // Assign config manager to admin
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        admin_address,
+        ctx(&mut scenario),
+    );
+    test_scenario::return_to_sender(&scenario, admin_cap);
+
+    next_tx(&mut scenario, admin_address);
+    let config_manager_cap = test_scenario::take_from_sender<ConfigManagerCap>(&scenario);
+
+    // Try to add wallet key from unauthorized address
+    next_tx(&mut scenario, unauthorized_address);
+    social_layer_config::add_allowed_wallet_key(
+        &config_manager_cap,
+        &mut config,
+        b"ADA".to_string(),
+        ctx(&mut scenario),
+    );
+
+    test_scenario::return_to_sender(&scenario, config_manager_cap);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_wallet_keys_empty_vector() {
+    let admin_address: address = @0xA;
+
+    let mut scenario = test_scenario::begin(admin_address);
+    suins_social_layer::app::test_init(ctx(&mut scenario));
+    social_layer_config::test_create_config(ctx(&mut scenario));
+
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<AdminCap>(&scenario);
+    let mut config = test_scenario::take_shared<Config>(&scenario);
+
+    // Assign config manager
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        admin_address,
+        ctx(&mut scenario),
+    );
+    test_scenario::return_to_sender(&scenario, admin_cap);
+
+    next_tx(&mut scenario, admin_address);
+    let config_manager_cap = test_scenario::take_from_sender<ConfigManagerCap>(&scenario);
+
+    // Set empty wallet keys vector
+    social_layer_config::set_allowed_wallet_keys(
+        &config_manager_cap,
+        &mut config,
+        vector::empty<String>(),
+        ctx(&mut scenario),
+    );
+
+    // Verify wallet keys vector is empty
+    let wallet_keys = social_layer_config::allowed_wallet_keys(&config);
+    assert_eq(vector::length(wallet_keys), 0);
+
+    // Try to remove from empty vector
+    let removed = social_layer_config::remove_allowed_wallet_key(
+        &config_manager_cap,
+        &mut config,
+        b"SOL".to_string(),
+        ctx(&mut scenario),
+    );
+
+    // Verify removal returns false for empty vector
+    assert_eq(removed, false);
+
+    test_scenario::return_to_sender(&scenario, config_manager_cap);
     test_scenario::return_shared(config);
     test_scenario::end(scenario);
 }

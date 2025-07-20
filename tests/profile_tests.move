@@ -52,66 +52,66 @@ fun test_profile_operations() {
     assert_eq(profile.display_name(), b"display-name".to_string());
     assert_eq(profile.url(), option::some(b"initial_url".to_string()));
     assert_eq(profile.bio(), option::some(b"Initial bio".to_string()));
-    assert_eq(profile.display_image_blob_id(), option::some(b"initial_image_url".to_string()));
+    assert_eq(profile.display_image_url(), option::some(b"initial_image_url".to_string()));
     assert_eq(
-        profile.background_image_blob_id(),
+        profile.background_image_url(),
         option::some(b"initial_background_image_url".to_string()),
     );
     assert_eq(profile.walrus_site_id(), option::some(b"initial_walrus_site_id".to_string()));
 
     // Test 3: Update display name
-    let new_display_image_blob_id = b"new_image_url".to_string();
-    suins_social_layer::profile_actions::set_display_image_blob_id(
+    let new_display_image_url = b"new_image_url".to_string();
+    suins_social_layer::profile_actions::set_display_image_url(
         &mut profile,
-        new_display_image_blob_id,
+        new_display_image_url,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.display_image_blob_id(), option::some(b"new_image_url".to_string()));
+    assert_eq(profile.display_image_url(), option::some(b"new_image_url".to_string()));
 
     // Test 4: Update bio
-    let new_background_image_blob_id = b"new_background_image_url".to_string();
-    suins_social_layer::profile_actions::set_background_image_blob_id(
+    let new_background_image_url = b"new_background_image_url".to_string();
+    suins_social_layer::profile_actions::set_background_image_url(
         &mut profile,
-        new_background_image_blob_id,
+        new_background_image_url,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
     assert_eq(
-        profile.background_image_blob_id(),
+        profile.background_image_url(),
         option::some(b"new_background_image_url".to_string()),
     );
 
     // Test 5: Remove bio
-    suins_social_layer::profile_actions::remove_background_image_blob_id(
+    suins_social_layer::profile_actions::remove_background_image_url(
         &mut profile,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.background_image_blob_id(), option::none<String>());
+    assert_eq(profile.background_image_url(), option::none<String>());
 
     // Test 6: Update image URL
-    let new_display_image_blob_id = b"new_image_url".to_string();
-    suins_social_layer::profile_actions::set_display_image_blob_id(
+    let new_display_image_url = b"new_image_url".to_string();
+    suins_social_layer::profile_actions::set_display_image_url(
         &mut profile,
-        new_display_image_blob_id,
+        new_display_image_url,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.display_image_blob_id(), option::some(b"new_image_url".to_string()));
+    assert_eq(profile.display_image_url(), option::some(b"new_image_url".to_string()));
 
     // Test 7: Remove image URL
-    suins_social_layer::profile_actions::remove_display_image_blob_id(
+    suins_social_layer::profile_actions::remove_display_image_url(
         &mut profile,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
-    assert_eq(profile.display_image_blob_id(), option::none<String>());
+    assert_eq(profile.display_image_url(), option::none<String>());
 
     // Test 8: Update URL
     let new_url = b"new_url".to_string();
@@ -125,20 +125,20 @@ fun test_profile_operations() {
     assert_eq(profile.url(), option::some(b"new_url".to_string()));
 
     // Test 9: Update blobID
-    let new_background_image_blob_id = b"new_background_image_url".to_string();
-    suins_social_layer::profile_actions::set_background_image_blob_id(
+    let new_background_image_url = b"new_background_image_url".to_string();
+    suins_social_layer::profile_actions::set_background_image_url(
         &mut profile,
-        new_background_image_blob_id,
+        new_background_image_url,
         &config,
         &clock,
         test_scenario::ctx(&mut scenario),
     );
     assert_eq(
-        profile.background_image_blob_id(),
+        profile.background_image_url(),
         option::some(b"new_background_image_url".to_string()),
     );
 
-    // Test 9: Remove URL
+    // Test 10: Remove URL
     suins_social_layer::profile_actions::remove_url(
         &mut profile,
         &config,
@@ -147,7 +147,7 @@ fun test_profile_operations() {
     );
     assert_eq(profile.url(), option::none<String>());
 
-    // Test 10: set walrus_site_id
+    // Test 11: set walrus_site_id
     let new_walrus_site_id = b"new_walrus_site_id".to_string();
     suins_social_layer::profile_actions::set_walrus_site_id(
         &mut profile,
@@ -158,7 +158,7 @@ fun test_profile_operations() {
     );
     assert_eq(profile.walrus_site_id(), option::some(b"new_walrus_site_id".to_string()));
 
-    // Test 11: remove walrus_site_id
+    // Test 12: remove walrus_site_id
     suins_social_layer::profile_actions::remove_walrus_site_id(
         &mut profile,
         &config,
@@ -167,7 +167,75 @@ fun test_profile_operations() {
     );
     assert_eq(profile.walrus_site_id(), option::none<String>());
 
-    // Test 12: Archive profile
+    // Test 13: Add wallet address
+    let network = b"ETH".to_string();
+    let address = b"0x1234567890123456789012345678901234567890".to_string();
+    suins_social_layer::profile_actions::add_wallet_address(
+        &mut profile,
+        network,
+        address,
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+
+    let wallet_addresses = profile.wallet_addresses();
+    assert!(sui::vec_map::contains(&wallet_addresses, &b"ETH".to_string()));
+    assert_eq(
+        *sui::vec_map::get(&wallet_addresses, &b"ETH".to_string()),
+        b"0x1234567890123456789012345678901234567890".to_string(),
+    );
+
+    // Test 14: Update wallet address
+    let new_address = b"0x0987654321098765432109876543210987654321".to_string();
+    suins_social_layer::profile_actions::update_wallet_address(
+        &mut profile,
+        b"ETH".to_string(),
+        new_address,
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+
+    let wallet_addresses = profile.wallet_addresses();
+    assert_eq(
+        *sui::vec_map::get(&wallet_addresses, &b"ETH".to_string()),
+        b"0x0987654321098765432109876543210987654321".to_string(),
+    );
+
+    // Test 15: Remove wallet address
+    suins_social_layer::profile_actions::remove_wallet_address(
+        &mut profile,
+        b"ETH".to_string(),
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+
+    let wallet_addresses = profile.wallet_addresses();
+    assert!(!sui::vec_map::contains(&wallet_addresses, &b"ETH".to_string()));
+
+    // Test 16: Set bio
+    let new_bio = b"This is a new bio for testing".to_string();
+    suins_social_layer::profile_actions::set_bio(
+        &mut profile,
+        new_bio,
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+    assert_eq(profile.bio(), option::some(b"This is a new bio for testing".to_string()));
+
+    // Test 17: Remove bio
+    suins_social_layer::profile_actions::remove_bio(
+        &mut profile,
+        &config,
+        &clock,
+        test_scenario::ctx(&mut scenario),
+    );
+    assert_eq(profile.bio(), option::none<String>());
+
+    // Test 18: Archive profile
     suins_social_layer::profile_actions::archive_profile(
         &mut profile,
         &config,
@@ -176,7 +244,7 @@ fun test_profile_operations() {
     );
     assert!(profile.is_archived());
 
-    // Test 13: Unarchive profile
+    // Test 19: Unarchive profile
     suins_social_layer::profile_actions::unarchive_profile(
         &mut profile,
         &config,
@@ -185,7 +253,7 @@ fun test_profile_operations() {
     );
     assert!(!profile.is_archived());
 
-    // Test 14: Delete profile
+    // Test 20: Delete profile
     suins_social_layer::profile_actions::delete_profile(
         profile,
         &mut registry,
@@ -201,7 +269,7 @@ fun test_profile_operations() {
 }
 
 #[test]
-#[expected_failure(abort_code = suins_social_layer::profile::EProfileAlreadyExists)]
+#[expected_failure(abort_code = suins_social_layer::profile::EDisplayNameAlreadyTaken)]
 fun test_duplicate_profile_creation() {
     let user_address: address = @0xA;
     let admin_address: address = @0xB;
@@ -220,8 +288,8 @@ fun test_duplicate_profile_creation() {
     let display_name = b"display-name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
-    let display_image_blob_id = option::some(b"initial_image_url".to_string());
-    let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
+    let display_image_url = option::some(b"initial_image_url".to_string());
+    let background_image_url = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
 
     // Create first profile
@@ -229,8 +297,8 @@ fun test_duplicate_profile_creation() {
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         &config,
         &mut registry,
@@ -244,8 +312,8 @@ fun test_duplicate_profile_creation() {
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         &config,
         &mut registry,
@@ -283,16 +351,16 @@ fun test_dynamic_fields() {
     let display_name = b"display-name".to_string();
     let url = option::some(b"initial_url".to_string());
     let bio = option::some(b"Initial bio".to_string());
-    let display_image_blob_id = option::some(b"initial_image_url".to_string());
-    let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
+    let display_image_url = option::some(b"initial_image_url".to_string());
+    let background_image_url = option::some(b"initial_background_image_url".to_string());
     let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
 
     let mut profile = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
-        display_image_blob_id,
-        background_image_blob_id,
+        display_image_url,
+        background_image_url,
         walrus_site_id,
         &config,
         &mut registry,

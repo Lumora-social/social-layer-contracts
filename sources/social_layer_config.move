@@ -13,6 +13,8 @@ const EBioTooLong: u64 = 4;
 const EBioTooShort: u64 = 5;
 const EAddressIsNotConfigManager: u64 = 6;
 const EDisplayNameInvalidCharacter: u64 = 7;
+const EWalletKeyNotAllowed: u64 = 8;
+const EWalletKeyAlreadyExists: u64 = 9;
 
 public struct SOCIAL_LAYER_CONFIG has drop {}
 
@@ -23,6 +25,7 @@ public struct Config has key {
     display_name_max_length: u64,
     bio_min_length: u64,
     bio_max_length: u64,
+    allowed_wallet_keys: vector<String>,
     config_manager: address,
 }
 
@@ -57,6 +60,7 @@ public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext
         display_name_max_length: constants::display_name_max_length(),
         bio_min_length: constants::bio_min_length(),
         bio_max_length: constants::bio_max_length(),
+        allowed_wallet_keys: constants::allowed_wallet_keys(),
         config_manager: tx_context::sender(ctx),
     };
 
@@ -156,6 +160,10 @@ public fun assert_display_name_is_valid(config: &Config, display_name: &String) 
     };
 }
 
+public fun assert_wallet_key_is_allowed(config: &Config, wallet_key: &String) {
+    assert!(vector::contains(&config.allowed_wallet_keys, wallet_key), EWalletKeyNotAllowed);
+}
+
 // Getters
 public fun version(config: &Config): u64 { config.version }
 
@@ -169,6 +177,52 @@ public fun bio_max_length(config: &Config): u64 { config.bio_max_length }
 
 public fun config_manager(config: &Config): address { config.config_manager }
 
+public fun allowed_wallet_keys(config: &Config): &vector<String> { &config.allowed_wallet_keys }
+
+public fun set_allowed_wallet_keys(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    allowed_wallet_keys: vector<String>,
+    ctx: &mut TxContext,
+) {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+    config.allowed_wallet_keys = allowed_wallet_keys;
+}
+
+public fun add_allowed_wallet_key(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    wallet_key: String,
+    ctx: &mut TxContext,
+) {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+    assert!(!vector::contains(&config.allowed_wallet_keys, &wallet_key), EWalletKeyAlreadyExists);
+    vector::push_back(&mut config.allowed_wallet_keys, wallet_key);
+}
+
+public fun remove_allowed_wallet_key(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    wallet_key: String,
+    ctx: &mut TxContext,
+): bool {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+
+    let wallet_keys = &mut config.allowed_wallet_keys;
+    let len = vector::length(wallet_keys);
+    let mut index = 0;
+
+    while (index < len) {
+        if (*vector::borrow(wallet_keys, index) == wallet_key) {
+            vector::swap_remove(wallet_keys, index);
+            return true
+        };
+        index = index + 1;
+    };
+
+    false
+}
+
 #[test_only]
 public fun test_create_config(ctx: &mut TxContext) {
     let config = Config {
@@ -178,6 +232,7 @@ public fun test_create_config(ctx: &mut TxContext) {
         display_name_max_length: constants::display_name_max_length(),
         bio_min_length: constants::bio_min_length(),
         bio_max_length: constants::bio_max_length(),
+        allowed_wallet_keys: constants::allowed_wallet_keys(),
         config_manager: tx_context::sender(ctx),
     };
     transfer::share_object(config)
