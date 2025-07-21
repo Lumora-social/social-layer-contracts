@@ -33,14 +33,12 @@ fun test_profile_operations() {
     let bio = option::some(b"Initial bio".to_string());
     let display_image_blob_id = option::some(b"initial_image_url".to_string());
     let background_image_blob_id = option::some(b"initial_background_image_url".to_string());
-    let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
     let mut profile = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
         display_image_blob_id,
         background_image_blob_id,
-        walrus_site_id,
         &config,
         &mut registry,
         &clock,
@@ -57,7 +55,6 @@ fun test_profile_operations() {
         profile.background_image_url(),
         option::some(b"initial_background_image_url".to_string()),
     );
-    assert_eq(profile.walrus_site_id(), option::some(b"initial_walrus_site_id".to_string()));
 
     // Test 3: Update display name
     let new_display_image_url = b"new_image_url".to_string();
@@ -146,26 +143,6 @@ fun test_profile_operations() {
         test_scenario::ctx(&mut scenario),
     );
     assert_eq(profile.url(), option::none<String>());
-
-    // Test 11: set walrus_site_id
-    let new_walrus_site_id = b"new_walrus_site_id".to_string();
-    suins_social_layer::profile_actions::set_walrus_site_id(
-        &mut profile,
-        new_walrus_site_id,
-        &config,
-        &clock,
-        test_scenario::ctx(&mut scenario),
-    );
-    assert_eq(profile.walrus_site_id(), option::some(b"new_walrus_site_id".to_string()));
-
-    // Test 12: remove walrus_site_id
-    suins_social_layer::profile_actions::remove_walrus_site_id(
-        &mut profile,
-        &config,
-        &clock,
-        test_scenario::ctx(&mut scenario),
-    );
-    assert_eq(profile.walrus_site_id(), option::none<String>());
 
     // Test 13: Add wallet address
     let network = b"ETH".to_string();
@@ -290,8 +267,6 @@ fun test_duplicate_profile_creation() {
     let bio = option::some(b"Initial bio".to_string());
     let display_image_url = option::some(b"initial_image_url".to_string());
     let background_image_url = option::some(b"initial_background_image_url".to_string());
-    let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-
     // Create first profile
     let profile1 = suins_social_layer::profile::create_profile_helper(
         display_name,
@@ -299,7 +274,6 @@ fun test_duplicate_profile_creation() {
         bio,
         display_image_url,
         background_image_url,
-        walrus_site_id,
         &config,
         &mut registry,
         &clock,
@@ -314,7 +288,6 @@ fun test_duplicate_profile_creation() {
         bio,
         display_image_url,
         background_image_url,
-        walrus_site_id,
         &config,
         &mut registry,
         &clock,
@@ -353,15 +326,12 @@ fun test_dynamic_fields() {
     let bio = option::some(b"Initial bio".to_string());
     let display_image_url = option::some(b"initial_image_url".to_string());
     let background_image_url = option::some(b"initial_background_image_url".to_string());
-    let walrus_site_id = option::some(b"initial_walrus_site_id".to_string());
-
     let mut profile = suins_social_layer::profile::create_profile_helper(
         display_name,
         url,
         bio,
         display_image_url,
         background_image_url,
-        walrus_site_id,
         &config,
         &mut registry,
         &clock,

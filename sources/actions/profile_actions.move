@@ -8,6 +8,7 @@ use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::Config;
 use suins_social_layer::social_layer_registry::Registry;
 
+/// Creates a new profile with basic information
 #[allow(lint(self_transfer))]
 public entry fun create_profile(
     display_name: String,
@@ -15,7 +16,6 @@ public entry fun create_profile(
     bio: Option<String>,
     display_image_url: Option<String>,
     background_image_url: Option<String>,
-    walrus_site_id: Option<String>,
     config: &Config,
     suins: &SuiNS,
     registry: &mut Registry,
@@ -28,7 +28,6 @@ public entry fun create_profile(
         bio,
         display_image_url,
         background_image_url,
-        walrus_site_id,
         config,
         suins,
         registry,
@@ -39,13 +38,13 @@ public entry fun create_profile(
     transfer::public_transfer(profile, tx_context::sender(ctx));
 }
 
+/// Creates a new profile with SuiNS the same as the display name
 public entry fun create_profile_with_suins(
     display_name: String,
     url: Option<String>,
     bio: Option<String>,
     display_image_url: Option<String>,
     background_image_url: Option<String>,
-    walrus_site_id: Option<String>,
     suins_registration: &SuinsRegistration,
     config: &Config,
     registry: &mut Registry,
@@ -58,7 +57,6 @@ public entry fun create_profile_with_suins(
         bio,
         display_image_url,
         background_image_url,
-        walrus_site_id,
         suins_registration,
         config,
         registry,
@@ -69,6 +67,7 @@ public entry fun create_profile_with_suins(
     transfer::public_transfer(profile, tx_context::sender(ctx));
 }
 
+/// Updates the display name of an existing profile
 public entry fun set_display_name(
     profile: &mut Profile,
     display_name: String,
@@ -89,6 +88,7 @@ public entry fun set_display_name(
     );
 }
 
+/// Updates the display name with SuiNS same as the display name
 public entry fun set_display_name_with_suins(
     profile: &mut Profile,
     display_name: String,
@@ -109,6 +109,7 @@ public entry fun set_display_name_with_suins(
     );
 }
 
+/// Sets the bio text for a profile
 public entry fun set_bio(
     profile: &mut Profile,
     bio: String,
@@ -125,6 +126,7 @@ public entry fun set_bio(
     )
 }
 
+/// Removes the bio text from a profile
 public entry fun remove_bio(
     profile: &mut Profile,
     config: &Config,
@@ -139,6 +141,7 @@ public entry fun remove_bio(
     )
 }
 
+/// Sets the display image URL for a profile
 public entry fun set_display_image_url(
     profile: &mut Profile,
     display_image_url: String,
@@ -155,6 +158,7 @@ public entry fun set_display_image_url(
     )
 }
 
+/// Removes the display image URL from a profile
 public entry fun remove_display_image_url(
     profile: &mut Profile,
     config: &Config,
@@ -169,6 +173,7 @@ public entry fun remove_display_image_url(
     )
 }
 
+/// Sets the background image URL for a profile
 public entry fun set_background_image_url(
     profile: &mut Profile,
     background_image_url: String,
@@ -185,6 +190,7 @@ public entry fun set_background_image_url(
     )
 }
 
+/// Removes the background image URL from a profile
 public entry fun remove_background_image_url(
     profile: &mut Profile,
     config: &Config,
@@ -199,6 +205,7 @@ public entry fun remove_background_image_url(
     )
 }
 
+/// Sets the URL for a profile
 public entry fun set_url(
     profile: &mut Profile,
     url: String,
@@ -215,6 +222,7 @@ public entry fun set_url(
     )
 }
 
+/// Removes the URL from a profile
 public entry fun remove_url(
     profile: &mut Profile,
     config: &Config,
@@ -229,36 +237,7 @@ public entry fun remove_url(
     )
 }
 
-public entry fun set_walrus_site_id(
-    profile: &mut Profile,
-    walrus_site_id: String,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    profile::set_walrus_site_id(
-        profile,
-        walrus_site_id,
-        config,
-        clock,
-        ctx,
-    )
-}
-
-public entry fun remove_walrus_site_id(
-    profile: &mut Profile,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    profile::remove_walrus_site_id(
-        profile,
-        config,
-        clock,
-        ctx,
-    )
-}
-
+/// Adds a wallet address to a profile
 public entry fun add_wallet_address(
     profile: &mut Profile,
     network: String,
@@ -277,6 +256,7 @@ public entry fun add_wallet_address(
     )
 }
 
+/// Updates an existing wallet address on a profile
 public entry fun update_wallet_address(
     profile: &mut Profile,
     network: String,
@@ -295,6 +275,7 @@ public entry fun update_wallet_address(
     )
 }
 
+/// Removes a wallet address from a profile
 public entry fun remove_wallet_address(
     profile: &mut Profile,
     network: String,
@@ -311,6 +292,7 @@ public entry fun remove_wallet_address(
     )
 }
 
+/// Archives a profile (marks as inactive)
 public entry fun archive_profile(
     profile: &mut Profile,
     config: &Config,
@@ -325,6 +307,7 @@ public entry fun archive_profile(
     )
 }
 
+/// Unarchives a profile (marks as active)
 public entry fun unarchive_profile(
     profile: &mut Profile,
     config: &Config,
@@ -339,6 +322,7 @@ public entry fun unarchive_profile(
     )
 }
 
+/// Permanently deletes a profile
 public entry fun delete_profile(
     profile: Profile,
     registry: &mut Registry,
@@ -353,6 +337,7 @@ public entry fun delete_profile(
     )
 }
 
+/// Adds a dynamic field to a profile
 public entry fun add_df_to_profile<K: copy + drop + store, V: store + copy + drop>(
     profile: &mut Profile,
     df_key: K,
@@ -367,6 +352,7 @@ public entry fun add_df_to_profile<K: copy + drop + store, V: store + copy + dro
     )
 }
 
+/// Removes a dynamic field from a profile
 public entry fun remove_df_from_profile<K: copy + drop + store, V: store + copy + drop>(
     profile: &mut Profile,
     df_key: K,
@@ -379,6 +365,7 @@ public entry fun remove_df_from_profile<K: copy + drop + store, V: store + copy 
     )
 }
 
+/// Adds a dynamic field to a profile without emitting events
 public entry fun add_df_to_profile_no_event<K: copy + drop + store, V: store + drop>(
     profile: &mut Profile,
     df_key: K,
@@ -393,6 +380,7 @@ public entry fun add_df_to_profile_no_event<K: copy + drop + store, V: store + d
     )
 }
 
+/// Removes a dynamic field from a profile without emitting events
 public entry fun remove_df_from_profile_no_event<K: copy + drop + store, V: store + drop>(
     profile: &mut Profile,
     df_key: K,
