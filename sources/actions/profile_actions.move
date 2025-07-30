@@ -4,8 +4,6 @@ use std::string::String;
 use sui::clock::Clock;
 use suins::suins::SuiNS;
 use suins::suins_registration::SuinsRegistration;
-use suins_social_layer::blocklist::{Self, BlockList};
-use suins_social_layer::following::{Self, Following};
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::Config;
 use suins_social_layer::social_layer_registry::Registry;
@@ -395,64 +393,38 @@ public entry fun remove_df_from_profile_no_event<K: copy + drop + store, V: stor
     );
 }
 
-public entry fun add_following(
-    profile: &Profile,
-    following: &mut Following,
-    blocklist: &BlockList,
-    following_address: address,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    following::follow_user(
-        following,
+/// Follows a user by address
+public entry fun follow_user(profile: &mut Profile, follow_address: address, clock: &Clock) {
+    profile::follow_user(
         profile,
-        following_address,
-        blocklist,
+        follow_address,
         clock,
-        ctx,
-    )
-}
-
-public entry fun remove_following(
-    profile: &Profile,
-    following: &mut Following,
-    following_address: address,
-    clock: &Clock,
-) {
-    following::unfollow_user(
-        following,
-        profile,
-        following_address,
-        clock,
-    )
-}
-
-public entry fun block_user(
-    blocklist: &mut BlockList,
-    profile: &Profile,
-    block_user_address: address,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    blocklist::block_user(
-        blocklist,
-        profile,
-        block_user_address,
-        clock,
-        ctx,
     );
 }
 
-public entry fun unblock_user(
-    blocklist: &mut BlockList,
-    profile: &Profile,
-    block_user_address: address,
-    clock: &Clock,
-) {
-    blocklist::unblock_user(
-        blocklist,
+/// Unfollows a user by address
+public entry fun unfollow_user(profile: &mut Profile, unfollow_address: address, clock: &Clock) {
+    profile::unfollow_user(
         profile,
-        block_user_address,
+        unfollow_address,
+        clock,
+    );
+}
+
+/// Blocks a user by address
+public entry fun block_user(profile: &mut Profile, block_address: address, clock: &Clock) {
+    profile::block_user(
+        profile,
+        block_address,
+        clock,
+    );
+}
+
+/// Unblocks a user by address
+public entry fun unblock_user(profile: &mut Profile, unblock_address: address, clock: &Clock) {
+    profile::unblock_user(
+        profile,
+        unblock_address,
         clock,
     );
 }

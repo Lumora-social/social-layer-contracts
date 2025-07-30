@@ -4,6 +4,7 @@ use std::string::String;
 use sui::clock::{Self, Clock};
 use sui::dynamic_field as df;
 use sui::event;
+use sui::table::{Self, Table};
 use sui::vec_map::VecMap;
 use suins::domain::new;
 use suins::registry::has_record;
@@ -30,7 +31,9 @@ public struct Profile has key, store {
     background_image_url: Option<String>,
     url: Option<String>,
     bio: Option<String>,
-    wallet_addresses: Option<VecMap<String, String>>,
+    wallet_addresses: VecMap<String, String>,
+    following: Table<address, bool>,
+    block_list: Table<address, bool>,
     is_archived: bool,
     created_at: u64,
     updated_at: u64,
@@ -113,6 +116,30 @@ public struct RemoveDfFromProfileEvent<K: copy + drop + store, V: store> has cop
     timestamp: u64,
 }
 
+public struct FollowUserEvent has copy, drop {
+    owner: address,
+    followed_address: address,
+    timestamp: u64,
+}
+
+public struct UnfollowUserEvent has copy, drop {
+    owner: address,
+    unfollowed_address: address,
+    timestamp: u64,
+}
+
+public struct BlockUserEvent has copy, drop {
+    timestamp: u64,
+    owner: address,
+    blocked_address: address,
+}
+
+public struct UnblockUserEvent has copy, drop {
+    owner: address,
+    unblocked_address: address,
+    timestamp: u64,
+}
+
 // === Getters ===
 public fun display_name(self: &Profile): String {
     assert!(!self.is_archived, EArchivedProfile);
@@ -141,11 +168,7 @@ public fun background_image_url(self: &Profile): Option<String> {
 
 public fun wallet_addresses(self: &Profile): VecMap<String, String> {
     assert!(!self.is_archived, EArchivedProfile);
-    if (option::is_some(&self.wallet_addresses)) {
-        *option::borrow(&self.wallet_addresses)
-    } else {
-        sui::vec_map::empty<String, String>()
-    }
+    self.wallet_addresses
 }
 
 public fun owner(self: &Profile): address {
@@ -181,11 +204,7 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
         timestamp: clock::timestamp_ms(clock),
         display_image_url: profile.display_image_url,
         background_image_url: profile.background_image_url,
-        wallet_addresses: if (option::is_some(&profile.wallet_addresses)) {
-            *option::borrow(&profile.wallet_addresses)
-        } else {
-            sui::vec_map::empty<String, String>()
-        },
+        wallet_addresses: profile.wallet_addresses,
         url: profile.url,
         bio: profile.bio,
     });
@@ -409,15 +428,8 @@ public(package) fun add_wallet_address(
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
     config::assert_wallet_key_is_allowed(config, &network);
 
-    if (option::is_some(&profile.wallet_addresses)) {
-        let wallet_addresses = option::borrow_mut(&mut profile.wallet_addresses);
-        assert!(!sui::vec_map::contains(wallet_addresses, &network), EWalletKeyAlreadyExists);
-        sui::vec_map::insert(wallet_addresses, network, address);
-    } else {
-        let mut wallet_addresses = sui::vec_map::empty<String, String>();
-        sui::vec_map::insert(&mut wallet_addresses, network, address);
-        profile.wallet_addresses = option::some(wallet_addresses);
-    };
+    assert!(!sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyAlreadyExists);
+    sui::vec_map::insert(&mut profile.wallet_addresses, network, address);
 
     profile.updated_at = clock::timestamp_ms(clock);
 
@@ -435,13 +447,11 @@ public(package) fun update_wallet_address(
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
     config::assert_wallet_key_is_allowed(config, &network);
-    assert!(option::is_some(&profile.wallet_addresses), EWalletKeyDoesNotExist);
 
-    let wallet_addresses = option::borrow_mut(&mut profile.wallet_addresses);
-    assert!(sui::vec_map::contains(wallet_addresses, &network), EWalletKeyDoesNotExist);
+    assert!(sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyDoesNotExist);
 
-    sui::vec_map::remove(wallet_addresses, &network);
-    sui::vec_map::insert(wallet_addresses, network, address);
+    sui::vec_map::remove(&mut profile.wallet_addresses, &network);
+    sui::vec_map::insert(&mut profile.wallet_addresses, network, address);
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -456,10 +466,9 @@ public(package) fun remove_wallet_address(
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
-    assert!(option::is_some(&profile.wallet_addresses), EWalletKeyDoesNotExist);
+    assert!(sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyDoesNotExist);
 
-    let wallet_addresses = option::borrow_mut(&mut profile.wallet_addresses);
-    sui::vec_map::remove(wallet_addresses, &network);
+    sui::vec_map::remove(&mut profile.wallet_addresses, &network);
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -525,8 +534,13 @@ public(package) fun delete_profile(
         display_image_url: _,
         background_image_url: _,
         wallet_addresses: _,
+        following,
+        block_list,
         owner,
     } = profile;
+
+    table::drop(following);
+    table::drop(block_list);
 
     event::emit(DeleteProfileEvent {
         owner,
@@ -625,8 +639,10 @@ public(package) fun create_profile_helper(
         updated_at: clock::timestamp_ms(clock),
         display_image_url,
         background_image_url,
-        wallet_addresses: option::none(),
+        wallet_addresses: sui::vec_map::empty<String, String>(),
         owner: tx_context::sender(ctx),
+        following: sui::table::new(ctx),
+        block_list: sui::table::new(ctx),
     };
     social_layer_registry::add_entries(registry, display_name, profile.owner);
 
@@ -684,6 +700,80 @@ public(package) fun remove_df_from_profile_no_event<K: copy + drop + store, V: s
     let df_value: V = df::remove(&mut profile.id, df_key);
     profile.updated_at = clock::timestamp_ms(clock);
     df_value
+}
+
+// === Follow/Block Functions ===
+
+public(package) fun follow_user(profile: &mut Profile, follow_address: address, clock: &Clock) {
+    assert!(!profile.is_archived, EArchivedProfile);
+    assert!(follow_address != profile.owner, ESenderNotOwner);
+
+    if (!table::contains(&profile.following, follow_address)) {
+        table::add(&mut profile.following, follow_address, true);
+        profile.updated_at = clock::timestamp_ms(clock);
+
+        event::emit(FollowUserEvent {
+            owner: profile.owner,
+            followed_address: follow_address,
+            timestamp: clock::timestamp_ms(clock),
+        });
+    };
+}
+
+public(package) fun unfollow_user(profile: &mut Profile, unfollow_address: address, clock: &Clock) {
+    assert!(!profile.is_archived, EArchivedProfile);
+
+    if (table::contains(&profile.following, unfollow_address)) {
+        table::remove(&mut profile.following, unfollow_address);
+        profile.updated_at = clock::timestamp_ms(clock);
+
+        event::emit(UnfollowUserEvent {
+            owner: profile.owner,
+            unfollowed_address: unfollow_address,
+            timestamp: clock::timestamp_ms(clock),
+        });
+    };
+}
+
+public(package) fun block_user(profile: &mut Profile, block_address: address, clock: &Clock) {
+    assert!(!profile.is_archived, EArchivedProfile);
+    assert!(block_address != profile.owner, ESenderNotOwner);
+
+    if (!table::contains(&profile.block_list, block_address)) {
+        table::add(&mut profile.block_list, block_address, true);
+        profile.updated_at = clock::timestamp_ms(clock);
+
+        event::emit(BlockUserEvent {
+            owner: profile.owner,
+            blocked_address: block_address,
+            timestamp: clock::timestamp_ms(clock),
+        });
+    };
+}
+
+public(package) fun unblock_user(profile: &mut Profile, unblock_address: address, clock: &Clock) {
+    assert!(!profile.is_archived, EArchivedProfile);
+
+    if (table::contains(&profile.block_list, unblock_address)) {
+        table::remove(&mut profile.block_list, unblock_address);
+        profile.updated_at = clock::timestamp_ms(clock);
+
+        event::emit(UnblockUserEvent {
+            owner: profile.owner,
+            unblocked_address: unblock_address,
+            timestamp: clock::timestamp_ms(clock),
+        });
+    };
+}
+
+public fun is_following(profile: &Profile, address: address): bool {
+    assert!(!profile.is_archived, EArchivedProfile);
+    table::contains(&profile.following, address)
+}
+
+public fun is_blocked(profile: &Profile, address: address): bool {
+    assert!(!profile.is_archived, EArchivedProfile);
+    table::contains(&profile.block_list, address)
 }
 
 fun assert_display_name_not_taken(display_name: String, suins: &SuiNS) {
