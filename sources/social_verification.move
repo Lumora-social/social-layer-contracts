@@ -4,17 +4,17 @@
 /// Security Model:
 /// 1. Backend performs OAuth with social platform
 /// 2. Backend verifies user owns the account
-/// 3. Backend signs attestation: profile_id || platform || platform_id || username || timestamp
+/// 3. Backend signs attestation: profile_id || platform || username || timestamp
 /// 4. User submits attestation to blockchain
 /// 5. Smart contract verifies signature using backend's public key
 /// 6. Links social account to profile if valid
 module suins_social_layer::social_verification;
 
 use std::string::String;
-use sui::clock::{Self, Clock};
-use sui::event;
 use sui::bcs;
+use sui::clock::{Self, Clock};
 use sui::ed25519;
+use sui::event;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
 
@@ -65,7 +65,6 @@ public struct SocialAccountLinkedEvent has copy, drop {
     profile_id: ID,
     profile_owner: address,
     platform: String,
-    platform_user_id: String,
     username: String,
     timestamp: u64,
 }
@@ -135,7 +134,6 @@ public entry fun transfer_admin(
 /// The signed message must be: profile_id || "twitter" || twitter_id || twitter_username || timestamp
 public entry fun link_twitter_account(
     profile: &mut Profile,
-    twitter_id: String,
     twitter_username: String,
     signature: vector<u8>,
     timestamp: u64,
@@ -147,7 +145,6 @@ public entry fun link_twitter_account(
     link_social_account_internal(
         profile,
         b"twitter".to_string(),
-        twitter_id,
         twitter_username,
         signature,
         timestamp,
@@ -161,7 +158,6 @@ public entry fun link_twitter_account(
 /// Links a Discord account to a profile with backend attestation
 public entry fun link_discord_account(
     profile: &mut Profile,
-    discord_id: String,
     discord_username: String,
     signature: vector<u8>,
     timestamp: u64,
@@ -173,7 +169,6 @@ public entry fun link_discord_account(
     link_social_account_internal(
         profile,
         b"discord".to_string(),
-        discord_id,
         discord_username,
         signature,
         timestamp,
@@ -187,7 +182,6 @@ public entry fun link_discord_account(
 /// Links a Telegram account to a profile with backend attestation
 public entry fun link_telegram_account(
     profile: &mut Profile,
-    telegram_id: String,
     telegram_username: String,
     signature: vector<u8>,
     timestamp: u64,
@@ -199,7 +193,6 @@ public entry fun link_telegram_account(
     link_social_account_internal(
         profile,
         b"telegram".to_string(),
-        telegram_id,
         telegram_username,
         signature,
         timestamp,
@@ -213,7 +206,6 @@ public entry fun link_telegram_account(
 /// Links a Google account to a profile with backend attestation
 public entry fun link_google_account(
     profile: &mut Profile,
-    google_id: String,
     google_email: String,
     signature: vector<u8>,
     timestamp: u64,
@@ -225,7 +217,6 @@ public entry fun link_google_account(
     link_social_account_internal(
         profile,
         b"google".to_string(),
-        google_id,
         google_email,
         signature,
         timestamp,
@@ -240,7 +231,6 @@ public entry fun link_google_account(
 fun link_social_account_internal(
     profile: &mut Profile,
     platform: String,
-    platform_user_id: String,
     username: String,
     signature: vector<u8>,
     timestamp: u64,
@@ -256,32 +246,28 @@ fun link_social_account_internal(
     config::assert_interacting_with_most_up_to_date_package(config);
 
     // 3. Verify oracle public key is set
-    assert!(
-        vector::length(&oracle_config.public_key) == 32,
-        EInvalidMessageFormat
-    );
+    assert!(vector::length(&oracle_config.public_key) == 32, EInvalidMessageFormat);
 
     // 4. Verify timestamp hasn't expired
     let current_time = clock::timestamp_ms(clock);
     assert!(
         current_time >= timestamp && current_time - timestamp <= ATTESTATION_VALIDITY_MS,
-        ETimestampExpired
+        ETimestampExpired,
     );
 
     // 5. Construct the message that should have been signed by backend
     let message = construct_attestation_message(
         object::id(profile),
         &platform,
-        &platform_user_id,
         &username,
-        timestamp
+        timestamp,
     );
 
     // 6. Verify the backend signature
     verify_oracle_signature(
         &message,
         &oracle_config.public_key,
-        &signature
+        &signature,
     );
 
     // 7. Store verification in profile using dynamic fields
@@ -294,18 +280,16 @@ fun link_social_account_internal(
             &mut profile.id,
             verification_key,
             SocialVerification {
-                platform_user_id,
                 username,
                 verified_at: current_time,
-            }
+            },
         );
     } else {
         // Update existing verification
         let verification = df::borrow_mut<String, SocialVerification>(
             &mut profile.id,
-            verification_key
+            verification_key,
         );
-        verification.platform_user_id = platform_user_id;
         verification.username = username;
         verification.verified_at = current_time;
     };
@@ -315,7 +299,6 @@ fun link_social_account_internal(
         profile_id: object::id(profile),
         profile_owner: profile::owner(profile),
         platform,
-        platform_user_id,
         username,
         timestamp: current_time,
     });
@@ -336,7 +319,7 @@ public entry fun unlink_social_account(
     if (df::exists_(&profile.id, platform)) {
         let verification = df::remove<String, SocialVerification>(
             &mut profile.id,
-            platform
+            platform,
         );
 
         event::emit(SocialAccountUnlinkedEvent {
@@ -353,7 +336,6 @@ public entry fun unlink_social_account(
 
 /// Stores social media verification data
 public struct SocialVerification has store {
-    platform_user_id: String,
     username: String,
     verified_at: u64,
 }
@@ -361,11 +343,10 @@ public struct SocialVerification has store {
 // === Helper Functions ===
 
 /// Constructs the attestation message
-/// Format: profile_id || platform || platform_user_id || username || timestamp
+/// Format: profile_id || platform || username || timestamp
 fun construct_attestation_message(
     profile_id: ID,
     platform: &String,
-    platform_user_id: &String,
     username: &String,
     timestamp: u64,
 ): vector<u8> {
@@ -380,13 +361,6 @@ fun construct_attestation_message(
     vector::append(&mut message, *platform_bytes);
 
     // Add separator (to prevent collision attacks)
-    vector::append(&mut message, b"||");
-
-    // Add platform user ID
-    let user_id_bytes = platform_user_id.as_bytes();
-    vector::append(&mut message, *user_id_bytes);
-
-    // Add separator
     vector::append(&mut message, b"||");
 
     // Add username
@@ -404,11 +378,7 @@ fun construct_attestation_message(
 }
 
 /// Verifies backend oracle signature
-fun verify_oracle_signature(
-    message: &vector<u8>,
-    public_key: &vector<u8>,
-    signature: &vector<u8>,
-) {
+fun verify_oracle_signature(message: &vector<u8>, public_key: &vector<u8>, signature: &vector<u8>) {
     // Validate lengths
     assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
     assert!(vector::length(signature) == 64, EInvalidMessageFormat);
@@ -417,7 +387,7 @@ fun verify_oracle_signature(
     let is_valid = ed25519::ed25519_verify(
         signature,
         public_key,
-        message
+        message,
     );
 
     assert!(is_valid, EInvalidSignature);
@@ -441,19 +411,12 @@ public fun has_verification(profile: &Profile, platform: String): bool {
 }
 
 /// Get verification data for a platform
-public fun get_verification(
-    profile: &Profile,
-    platform: String
-): (String, String, u64) {
+public fun get_verification(profile: &Profile, platform: String): (String, u64) {
     let verification = df::borrow<String, SocialVerification>(
         &profile.id,
-        platform
+        platform,
     );
-    (
-        verification.platform_user_id,
-        verification.username,
-        verification.verified_at
-    )
+    (verification.username, verification.verified_at)
 }
 
 // === Test Helper Functions ===
