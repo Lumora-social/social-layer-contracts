@@ -23,6 +23,7 @@ const EDisplayNameAlreadyTaken: u64 = 5;
 const EWalletKeyAlreadyExists: u64 = 6;
 const EWalletKeyDoesNotExist: u64 = 7;
 
+//TODO: HAve is created via Suins here?
 public struct Profile has key, store {
     id: UID,
     owner: address,
@@ -31,6 +32,7 @@ public struct Profile has key, store {
     background_image_url: Option<String>,
     url: Option<String>,
     bio: Option<String>,
+    social_accounts: VecMap<String, String>,
     wallet_addresses: VecMap<String, String>,
     following: Table<address, bool>,
     block_list: Table<address, bool>,
@@ -528,6 +530,7 @@ public(package) fun delete_profile(
         display_name,
         url: _,
         bio: _,
+        social_accounts: _,
         is_archived: _,
         created_at: _,
         updated_at: _,
@@ -637,6 +640,7 @@ public(package) fun create_profile_helper(
         is_archived: false,
         created_at: clock::timestamp_ms(clock),
         updated_at: clock::timestamp_ms(clock),
+        social_accounts: sui::vec_map::empty<String, String>(),
         display_image_url,
         background_image_url,
         wallet_addresses: sui::vec_map::empty<String, String>(),
@@ -792,4 +796,12 @@ fun assert_display_name_matches_with_suins(
 ) {
     let expected_name = suins_registration.domain().label(1);
     assert!(expected_name == display_name, EDisplayNameNotMatching);
+}
+
+public(package) fun link_social_account(profile: &mut Profile, platform: String, username: String) {
+    sui::vec_map::insert(&mut profile.social_accounts, platform, username);
+}
+
+public(package) fun unlink_social_account(profile: &mut Profile, platform: &String) {
+    sui::vec_map::remove(&mut profile.social_accounts, platform);
 }

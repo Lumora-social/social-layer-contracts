@@ -127,30 +127,33 @@ public entry fun mint_badges(
 
     // Get or create badge collection
     let profile_id = object::id(profile);
+    let profile_owner = profile::owner(profile);
     let badge_collection_key = b"badge_collection".to_string();
 
-    if (!df::exists_(&profile.id, badge_collection_key)) {
+    if (!df::exists_(profile::uid(profile), badge_collection_key)) {
         // Create new collection
         let collection = BadgeCollection {
             badges: vector::empty<Badge>(),
             last_updated: current_time,
         };
-        df::add(&mut profile.id, badge_collection_key, collection);
+        df::add(profile::uid_mut(profile), badge_collection_key, collection);
     };
 
     // Get mutable reference to collection
-    let collection = df::borrow_mut<String, BadgeCollection>(&mut profile.id, badge_collection_key);
+    let collection = df::borrow_mut<String, BadgeCollection>(profile::uid_mut(profile), badge_collection_key);
     collection.last_updated = current_time;
 
     // TODO: Parse badges_json and add/update badges
     // For now, this is a placeholder showing the pattern
     // In practice, you'd parse the JSON and update the badges vector
 
+    let badges_count = vector::length(&collection.badges);
+
     // 8. Emit event
     event::emit(BadgesMintedEvent {
         profile_id,
-        profile_owner: profile::owner(profile),
-        badges_count: vector::length(&collection.badges),
+        profile_owner,
+        badges_count,
         timestamp: current_time,
     });
 }
@@ -214,11 +217,11 @@ fun verify_oracle_signature(
 public fun get_badges(profile: &Profile): vector<Badge> {
     let badge_collection_key = b"badge_collection".to_string();
 
-    if (!df::exists_(&profile.id, badge_collection_key)) {
+    if (!df::exists_(profile::uid(profile), badge_collection_key)) {
         return vector::empty<Badge>()
     };
 
-    let collection = df::borrow<String, BadgeCollection>(&profile.id, badge_collection_key);
+    let collection = df::borrow<String, BadgeCollection>(profile::uid(profile), badge_collection_key);
     collection.badges
 }
 
