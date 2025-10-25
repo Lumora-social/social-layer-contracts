@@ -7,7 +7,7 @@ use suins_social_layer::social_layer_config::Config;
 
 /// Creates a new post with content and optional attachments
 #[allow(lint(self_transfer))]
-public entry fun create_post(
+public fun create_post(
     content: String,
     attachment_ids: vector<String>,
     config: &Config,
@@ -26,7 +26,7 @@ public entry fun create_post(
 }
 
 /// Updates an existing post's content and attachments
-public entry fun update_post(
+public fun update_post(
     post: &mut Post,
     content: String,
     attachment_ids: vector<String>,
@@ -45,11 +45,7 @@ public entry fun update_post(
 }
 
 /// Permanently deletes a post
-public entry fun delete_post(
-    post: Post,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
+public fun delete_post(post: Post, clock: &Clock, ctx: &mut TxContext) {
     post::delete_post(
         post,
         clock,
@@ -58,11 +54,7 @@ public entry fun delete_post(
 }
 
 /// Likes a post
-public entry fun like_post(
-    post: &mut Post,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
+public fun like_post(post: &mut Post, clock: &Clock, ctx: &mut TxContext) {
     post::like_post(
         post,
         clock,
@@ -71,11 +63,7 @@ public entry fun like_post(
 }
 
 /// Unlikes a post
-public entry fun unlike_post(
-    post: &mut Post,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
+public fun unlike_post(post: &mut Post, clock: &Clock, ctx: &mut TxContext) {
     post::unlike_post(
         post,
         clock,
@@ -84,11 +72,7 @@ public entry fun unlike_post(
 }
 
 /// Reposts a post (increments repost count on original)
-public entry fun repost(
-    original_post: &mut Post,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
+public fun repost(original_post: &mut Post, clock: &Clock, ctx: &mut TxContext) {
     post::increment_repost_count(
         original_post,
         clock,
@@ -98,7 +82,7 @@ public entry fun repost(
 
 /// Creates a reply to a post (increments reply count on original)
 #[allow(lint(self_transfer))]
-public entry fun create_reply(
+public fun create_reply(
     original_post: &mut Post,
     content: String,
     attachment_ids: vector<String>,

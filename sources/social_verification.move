@@ -13,7 +13,6 @@ module suins_social_layer::social_verification;
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
-use sui::dynamic_field as df;
 use sui::ed25519;
 use sui::event;
 use suins_social_layer::profile::{Self, Profile};
@@ -64,7 +63,7 @@ public struct OraclePublicKeyUpdatedEvent has copy, drop {
 
 /// Updates the backend oracle's public key
 /// Only the admin can call this
-public entry fun update_oracle_public_key(
+public fun update_oracle_public_key(
     oracle_config: &mut OracleConfig,
     new_public_key: vector<u8>,
     ctx: &TxContext,
@@ -83,11 +82,7 @@ public entry fun update_oracle_public_key(
 }
 
 /// Transfers admin rights to a new address
-public entry fun transfer_admin(
-    oracle_config: &mut OracleConfig,
-    new_admin: address,
-    ctx: &TxContext,
-) {
+public fun transfer_admin(oracle_config: &mut OracleConfig, new_admin: address, ctx: &TxContext) {
     assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
     oracle_config.admin = new_admin;
 }
@@ -98,7 +93,7 @@ public entry fun transfer_admin(
 
 /// # Message Format
 /// The signed message must be: profile_id || "twitter" || twitter_username || timestamp
-public entry fun link_twitter_account(
+public fun link_twitter_account(
     profile: &mut Profile,
     twitter_username: String,
     signature: vector<u8>,
@@ -122,7 +117,7 @@ public entry fun link_twitter_account(
 }
 
 /// Links a Discord account to a profile with backend attestation
-public entry fun link_discord_account(
+public fun link_discord_account(
     profile: &mut Profile,
     discord_username: String,
     signature: vector<u8>,
@@ -146,7 +141,7 @@ public entry fun link_discord_account(
 }
 
 /// Links a Telegram account to a profile with backend attestation
-public entry fun link_telegram_account(
+public fun link_telegram_account(
     profile: &mut Profile,
     telegram_username: String,
     signature: vector<u8>,
@@ -170,7 +165,7 @@ public entry fun link_telegram_account(
 }
 
 /// Links a Google account to a profile with backend attestation
-public entry fun link_google_account(
+public fun link_google_account(
     profile: &mut Profile,
     google_email: String,
     signature: vector<u8>,
@@ -231,15 +226,14 @@ fun link_social_account_internal(
     );
 
     profile::link_social_account(profile, platform, username);
-
 }
 
 /// Unlinks a social account from a profile
-public entry fun unlink_social_account(
+public fun unlink_social_account(
     profile: &mut Profile,
     platform: String,
     config: &Config,
-    clock: &Clock,
+    _clock: &Clock,
     ctx: &TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);

@@ -9,10 +9,10 @@
 module suins_social_layer::secure_wallet_link;
 
 use std::string::String;
-use sui::clock::{Self, Clock};
-use sui::event;
 use sui::bcs;
+use sui::clock::{Self, Clock};
 use sui::ed25519;
+use sui::event;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
 
@@ -80,7 +80,7 @@ public struct SuiWalletUnlinkedEvent has copy, drop {
 /// # Message Format
 /// The signed message must be: profile_id || wallet_to_link || timestamp || nonce
 /// where || represents concatenation
-public entry fun link_sui_wallet(
+public fun link_sui_wallet(
     profile: &mut Profile,
     wallet_to_link: address,
     public_key: vector<u8>,
@@ -100,23 +100,17 @@ public entry fun link_sui_wallet(
 
     // 3. Verify timestamp hasn't expired
     let current_time = clock::timestamp_ms(clock);
-    assert!(
-        current_time - timestamp <= SIGNATURE_VALIDITY_MS,
-        ETimestampExpired
-    );
+    assert!(current_time - timestamp <= SIGNATURE_VALIDITY_MS, ETimestampExpired);
 
     // 4. Verify nonce hasn't been used before
-    assert!(
-        !sui::table::contains(&nonce_registry.used_nonces, nonce),
-        ENonceAlreadyUsed
-    );
+    assert!(!sui::table::contains(&nonce_registry.used_nonces, nonce), ENonceAlreadyUsed);
 
     // 5. Construct the message that should have been signed
     let message = construct_link_message(
         object::id(profile),
         wallet_to_link,
         timestamp,
-        &nonce
+        &nonce,
     );
 
     // 6. Verify the signature
@@ -153,7 +147,7 @@ public entry fun link_sui_wallet(
 }
 
 /// Unlinks a Sui wallet from a profile
-public entry fun unlink_sui_wallet(
+public fun unlink_sui_wallet(
     profile: &mut Profile,
     wallet_key: String,
     config: &Config,
@@ -217,7 +211,7 @@ fun verify_ed25519_signature(
     let is_valid = ed25519::ed25519_verify(
         signature,
         public_key,
-        message
+        message,
     );
 
     assert!(is_valid, EInvalidSignature);
