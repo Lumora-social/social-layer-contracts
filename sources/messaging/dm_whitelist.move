@@ -1,111 +1,99 @@
-module suins_social_layer::post_actions;
+module suins_social_layer::dm_whitelist;
 
-use std::string::String;
-use sui::clock::Clock;
-use suins_social_layer::post::{Self, Post};
-use suins_social_layer::social_layer_config::Config;
+use sui::clock::{Self, Clock};
+use sui::event;
 
-/// Creates a new post with content and optional attachments
-#[allow(lint(self_transfer))]
-public fun create_post(
-    content: String,
-    attachment_ids: vector<String>,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    let post = post::create_post(
-        content,
-        attachment_ids,
-        config,
-        clock,
-        ctx,
-    );
+const ENoAccess: u64 = 1;
+const EWrongVersion: u64 = 2;
 
-    transfer::public_transfer(post, tx_context::sender(ctx));
+const VERSION: u64 = 1;
+
+// === Events ===
+public struct CreateDMWhitelistEvent has copy, drop {
+    conversation_id: ID,
+    sender: address,
+    receiver: address,
+    timestamp: u64,
 }
 
-/// Updates an existing post's content and attachments
-public fun update_post(
-    post: &mut Post,
-    content: String,
-    attachment_ids: vector<String>,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    post::update_post(
-        post,
-        content,
-        attachment_ids,
-        config,
-        clock,
-        ctx,
-    );
+// public struct DeleteDMWhitelistEvent has copy, drop {
+//     conversation_id: ID,
+//     sender: address,
+//     receiver: address,
+//     timestamp: u64,
+// }
+
+public struct DM_Whitelist has key {
+    id: UID,
+    version: u64,
+    sender: address,
+    receiver: address,
 }
 
-/// Permanently deletes a post
-public fun delete_post(post: Post, clock: &Clock, ctx: &mut TxContext) {
-    post::delete_post(
-        post,
-        clock,
-        ctx,
-    );
+// === Event Emitters ===
+fun emit_create_dm_whitelist_event(wl: &DM_Whitelist, timestamp: u64) {
+    event::emit(CreateDMWhitelistEvent {
+        conversation_id: object::uid_to_inner(&wl.id),
+        sender: wl.sender,
+        receiver: wl.receiver,
+        timestamp: timestamp,
+    });
 }
 
-/// Likes a post
-public fun like_post(post: &mut Post, clock: &Clock, ctx: &mut TxContext) {
-    post::like_post(
-        post,
-        clock,
-        ctx,
-    );
+public fun create_dm_whitelist(ctx: &mut TxContext, receiver: address): DM_Whitelist {
+    let wl = DM_Whitelist {
+        id: object::new(ctx),
+        version: VERSION,
+        sender: ctx.sender(),
+        receiver: receiver,
+    };
+    wl
 }
 
-/// Unlikes a post
-public fun unlike_post(post: &mut Post, clock: &Clock, ctx: &mut TxContext) {
-    post::unlike_post(
-        post,
-        clock,
-        ctx,
-    );
+public fun share_dm_whitelist(wl: DM_Whitelist) {
+    transfer::share_object(wl);
 }
 
-/// Reposts a post (increments repost count on original)
-public fun repost(original_post: &mut Post, clock: &Clock, ctx: &mut TxContext) {
-    post::increment_repost_count(
-        original_post,
-        clock,
-        ctx,
-    );
+public fun sender(wl: &DM_Whitelist): address {
+    wl.sender
 }
 
-/// Creates a reply to a post (increments reply count on original)
-#[allow(lint(self_transfer))]
-public fun create_reply(
-    original_post: &mut Post,
-    content: String,
-    attachment_ids: vector<String>,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    // Create the reply post
-    let reply_post = post::create_post(
-        content,
-        attachment_ids,
-        config,
-        clock,
-        ctx,
-    );
+public fun receiver(wl: &DM_Whitelist): address {
+    wl.receiver
+}
 
-    // Increment reply count on original post
-    post::increment_reply_count(
-        original_post,
-        object::id(&reply_post),
-        clock,
-        ctx,
-    );
+public fun create_dm_whitelist_entry(receiver: address, clock: &Clock, ctx: &mut TxContext) {
+    let wl = create_dm_whitelist(ctx, receiver);
+    emit_create_dm_whitelist_event(&wl, clock::timestamp_ms(clock));
+    share_dm_whitelist(wl);
+}
 
-    transfer::public_transfer(reply_post, tx_context::sender(ctx));
+fun check_policy(caller: address, id: vector<u8>, wl: &DM_Whitelist): bool {
+    assert!(wl.version == VERSION, EWrongVersion);
+
+    // Check if the id has the right prefix
+    let prefix = wl.id.to_bytes();
+    let mut i = 0;
+    if (prefix.length() > id.length()) {
+        return false
+    };
+    while (i < prefix.length()) {
+        if (prefix[i] != id[i]) {
+            return false
+        };
+        i = i + 1;
+    };
+
+    // Check if user is the receiver or sender
+    wl.receiver == caller || wl.sender == caller
+}
+
+entry fun seal_approve(id: vector<u8>, wl: &DM_Whitelist, ctx: &TxContext) {
+    assert!(check_policy(ctx.sender(), id, wl), ENoAccess);
+}
+
+#[test_only]
+public fun destroy_for_testing(wl: DM_Whitelist) {
+    let DM_Whitelist { id, version: _, sender: _, receiver: _ } = wl;
+    object::delete(id);
 }
