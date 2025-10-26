@@ -31,7 +31,7 @@ echo ""
 
 # Extract Registry object ID
 echo "Registry Object ID:"
-RAW_REGISTRY_ID=$(grep -B 5 "Registry" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
+RAW_REGISTRY_ID=$(grep -B 5 "::Registry" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
 REGISTRY_ID=$(clean_id "$RAW_REGISTRY_ID")
 if [ -n "$REGISTRY_ID" ]; then
     echo "  $REGISTRY_ID"
@@ -43,10 +43,22 @@ echo ""
 
 # Extract Config object ID
 echo "Config Object ID:"
-RAW_CONFIG_ID=$(grep -B 5 "Config" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
+RAW_CONFIG_ID=$(grep -B 5 "::Config" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
 CONFIG_ID=$(clean_id "$RAW_CONFIG_ID")
 if [ -n "$CONFIG_ID" ]; then
     echo "  $CONFIG_ID"
+else
+    echo "  Not found"
+fi
+
+echo ""
+
+# Extract OracleConfig object ID
+echo "OracleConfig Object ID:"
+RAW_ORACLE_CONFIG_ID=$(grep -B 5 "OracleConfig" "scripts/publish_output_$environment.txt" | grep "ObjectID:" | head -1 | sed 's/.*ObjectID: //')
+ORACLE_CONFIG_ID=$(clean_id "$RAW_ORACLE_CONFIG_ID")
+if [ -n "$ORACLE_CONFIG_ID" ]; then
+    echo "  $ORACLE_CONFIG_ID"
 else
     echo "  Not found"
 fi
@@ -70,6 +82,7 @@ echo "Summary:"
 echo "AdminCap: $ADMIN_CAP_ID"
 echo "Registry: $REGISTRY_ID"
 echo "Config:   $CONFIG_ID"
+echo "OracleConfig: $ORACLE_CONFIG_ID"
 echo "Package:  $PACKAGE_ID"
 
 echo ""
@@ -105,11 +118,13 @@ if [ "$environment" == "testnet" ] || [ "$environment" == "mainnet" ]; then
     contract_id_line=$(awk "NR > $start_line && NR < $end_line && /contractId:/ {print NR; exit}" "$CONSTANTS_FILE")
     config_id_line=$(awk "NR > $start_line && NR < $end_line && /configId:/ {print NR; exit}" "$CONSTANTS_FILE")
     registry_id_line=$(awk "NR > $start_line && NR < $end_line && /registryId:/ {print NR; exit}" "$CONSTANTS_FILE")
+    oracle_config_id_line=$(awk "NR > $start_line && NR < $end_line && /oracleConfigId:/ {print NR; exit}" "$CONSTANTS_FILE")
 
     # The actual values are on the next line
     contract_id_value_line=$((contract_id_line + 1))
     config_id_value_line=$((config_id_line + 1))
     registry_id_value_line=$((registry_id_line + 1))
+    oracle_config_id_value_line=$((oracle_config_id_line + 1))
 
     # Update the file
     sedi "${contract_id_value_line}s|'.*'|      '$PACKAGE_ID'|" "$CONSTANTS_FILE"
@@ -120,6 +135,9 @@ if [ "$environment" == "testnet" ] || [ "$environment" == "mainnet" ]; then
 
     sedi "${registry_id_value_line}s|'.*'|      '$REGISTRY_ID'|" "$CONSTANTS_FILE"
     echo "Updated ${environment} registryId to $REGISTRY_ID"
+
+    sedi "${oracle_config_id_value_line}s|'.*'|      '$ORACLE_CONFIG_ID'|" "$CONSTANTS_FILE"
+    echo "Updated ${environment} oracleConfigId to $ORACLE_CONFIG_ID"
 else
     echo "Skipping constants update: environment '$environment' is not 'testnet' or 'mainnet'."
 fi

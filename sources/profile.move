@@ -33,7 +33,7 @@ public struct Profile has key, store {
     url: Option<String>,
     bio: Option<String>,
     social_accounts: VecMap<String, String>,
-    wallet_addresses: VecMap<String, String>,
+    wallet_addresses: VecMap<String, vector<String>>,
     following: Table<address, bool>,
     block_list: Table<address, bool>,
     is_archived: bool,
