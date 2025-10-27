@@ -251,7 +251,8 @@ public fun add_wallet_address(
 public fun update_wallet_address(
     profile: &mut Profile,
     network: String,
-    address: String,
+    old_address: String,
+    new_address: String,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
@@ -259,7 +260,8 @@ public fun update_wallet_address(
     profile::update_wallet_address(
         profile,
         network,
-        address,
+        old_address,
+        new_address,
         config,
         clock,
         ctx,
@@ -270,6 +272,7 @@ public fun update_wallet_address(
 public fun remove_wallet_address(
     profile: &mut Profile,
     network: String,
+    address: String,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
@@ -277,6 +280,7 @@ public fun remove_wallet_address(
     profile::remove_wallet_address(
         profile,
         network,
+        address,
         config,
         clock,
         ctx,

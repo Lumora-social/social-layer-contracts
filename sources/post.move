@@ -3,7 +3,6 @@ module suins_social_layer::post;
 use std::string::String;
 use sui::clock::{Self, Clock};
 use sui::event;
-use sui::table::{Self, Table};
 use suins_social_layer::social_layer_config::{Self as config, Config};
 
 #[error]
@@ -16,18 +15,36 @@ const ETooManyAttachments: u64 = 3;
 const MAX_CONTENT_LENGTH: u64 = 5000;
 const MAX_ATTACHMENTS: u64 = 10;
 
+/// Post object - owned by creator, no contention
+/// All interactions (likes, reposts, replies) are separate owned objects
 public struct Post has key, store {
     id: UID,
     owner: address,
     content: String,
     attachment_ids: vector<String>,
-    likes: Table<address, bool>,
-    likes_count: u64,
-    repost_count: u64,
-    reply_count: u64,
     is_deleted: bool,
     created_at: u64,
     updated_at: u64,
+}
+
+/// Like object - owned by liker, references post
+/// Enables parallel likes without contention
+public struct Like has key, store {
+    id: UID,
+    post_id: ID,
+    post_owner: address,
+    liker: address,
+    created_at: u64,
+}
+
+/// Repost object - owned by reposter, references original post
+/// Enables parallel reposts without contention
+public struct Repost has key, store {
+    id: UID,
+    original_post_id: ID,
+    original_owner: address,
+    reposter: address,
+    created_at: u64,
 }
 
 public struct POST has drop {}
@@ -98,7 +115,7 @@ public struct ReplyEvent has copy, drop {
     timestamp: u64,
 }
 
-// === Getters ===
+// === Post Getters ===
 public fun owner(self: &Post): address {
     assert!(!self.is_deleted, EPostDeleted);
     self.owner
@@ -112,21 +129,6 @@ public fun content(self: &Post): String {
 public fun attachment_ids(self: &Post): vector<String> {
     assert!(!self.is_deleted, EPostDeleted);
     self.attachment_ids
-}
-
-public fun likes_count(self: &Post): u64 {
-    assert!(!self.is_deleted, EPostDeleted);
-    self.likes_count
-}
-
-public fun repost_count(self: &Post): u64 {
-    assert!(!self.is_deleted, EPostDeleted);
-    self.repost_count
-}
-
-public fun reply_count(self: &Post): u64 {
-    assert!(!self.is_deleted, EPostDeleted);
-    self.reply_count
 }
 
 public fun created_at(self: &Post): u64 {
@@ -143,13 +145,42 @@ public fun is_deleted(self: &Post): bool {
     self.is_deleted
 }
 
-public fun has_liked(self: &Post, address: address): bool {
-    assert!(!self.is_deleted, EPostDeleted);
-    table::contains(&self.likes, address)
-}
-
 public fun uid(self: &Post): &UID {
     &self.id
+}
+
+// === Like Getters ===
+public fun like_post_id(self: &Like): ID {
+    self.post_id
+}
+
+public fun like_post_owner(self: &Like): address {
+    self.post_owner
+}
+
+public fun liker(self: &Like): address {
+    self.liker
+}
+
+public fun like_created_at(self: &Like): u64 {
+    self.created_at
+}
+
+// === Repost Getters ===
+public fun repost_original_post_id(self: &Repost): ID {
+    self.original_post_id
+}
+
+public fun repost_original_owner(self: &Repost): address {
+    self.original_owner
+}
+
+public fun reposter(self: &Repost): address {
+    self.reposter
+}
+
+public fun repost_created_at(self: &Repost): u64 {
+    self.created_at
 }
 
 fun emit_update_post_event(post: &Post, clock: &Clock) {
@@ -172,7 +203,7 @@ fun assert_attachments_valid(attachments: &vector<String>) {
     assert!(vector::length(attachments) <= MAX_ATTACHMENTS, ETooManyAttachments);
 }
 
-// === Core Functions ===
+// === Post Core Functions ===
 public(package) fun create_post(
     content: String,
     attachment_ids: vector<String>,
@@ -189,10 +220,6 @@ public(package) fun create_post(
         owner: tx_context::sender(ctx),
         content,
         attachment_ids,
-        likes: sui::table::new(ctx),
-        likes_count: 0,
-        repost_count: 0,
-        reply_count: 0,
         is_deleted: false,
         created_at: clock::timestamp_ms(clock),
         updated_at: clock::timestamp_ms(clock),
@@ -242,16 +269,10 @@ public(package) fun delete_post(
         owner,
         content: _,
         attachment_ids: _,
-        likes,
-        likes_count: _,
-        repost_count: _,
-        reply_count: _,
         is_deleted: _,
         created_at: _,
         updated_at: _,
     } = post;
-
-    table::drop(likes);
 
     event::emit(DeletePostEvent {
         post_id: object::id_from_address(id.to_address()),
@@ -262,82 +283,108 @@ public(package) fun delete_post(
     id.delete();
 }
 
-public(package) fun like_post(
-    post: &mut Post,
+// === Like Functions ===
+/// Creates a new Like object owned by the liker
+/// No contention - each like is an independent owned object
+public(package) fun create_like(
+    post_id: ID,
+    post_owner: address,
     clock: &Clock,
-    ctx: &TxContext,
-) {
-    assert!(!post.is_deleted, EPostDeleted);
+    ctx: &mut TxContext,
+): Like {
     let liker = tx_context::sender(ctx);
+    let timestamp = clock::timestamp_ms(clock);
 
-    if (!table::contains(&post.likes, liker)) {
-        table::add(&mut post.likes, liker, true);
-        post.likes_count = post.likes_count + 1;
-        post.updated_at = clock::timestamp_ms(clock);
-
-        event::emit(LikePostEvent {
-            post_id: object::id(post),
-            liker,
-            post_owner: post.owner,
-            timestamp: clock::timestamp_ms(clock),
-        });
+    let like = Like {
+        id: object::new(ctx),
+        post_id,
+        post_owner,
+        liker,
+        created_at: timestamp,
     };
+
+    event::emit(LikePostEvent {
+        post_id,
+        liker,
+        post_owner,
+        timestamp,
+    });
+
+    like
 }
 
-public(package) fun unlike_post(
-    post: &mut Post,
+/// Deletes a Like object
+/// User provides their own Like object to delete
+public(package) fun delete_like(
+    like: Like,
     clock: &Clock,
     ctx: &TxContext,
 ) {
-    assert!(!post.is_deleted, EPostDeleted);
-    let unliker = tx_context::sender(ctx);
+    assert!(tx_context::sender(ctx) == like.liker, ESenderNotOwner);
 
-    if (table::contains(&post.likes, unliker)) {
-        table::remove(&mut post.likes, unliker);
-        post.likes_count = post.likes_count - 1;
-        post.updated_at = clock::timestamp_ms(clock);
+    let Like {
+        id,
+        post_id,
+        post_owner,
+        liker,
+        created_at: _,
+    } = like;
 
-        event::emit(UnlikePostEvent {
-            post_id: object::id(post),
-            unliker,
-            post_owner: post.owner,
-            timestamp: clock::timestamp_ms(clock),
-        });
-    };
-}
-
-public(package) fun increment_repost_count(
-    post: &mut Post,
-    clock: &Clock,
-    ctx: &TxContext,
-) {
-    assert!(!post.is_deleted, EPostDeleted);
-    post.repost_count = post.repost_count + 1;
-    post.updated_at = clock::timestamp_ms(clock);
-
-    event::emit(RepostEvent {
-        original_post_id: object::id(post),
-        reposter: tx_context::sender(ctx),
-        original_owner: post.owner,
+    event::emit(UnlikePostEvent {
+        post_id,
+        unliker: liker,
+        post_owner,
         timestamp: clock::timestamp_ms(clock),
     });
+
+    id.delete();
 }
 
-public(package) fun increment_reply_count(
-    post: &mut Post,
+// === Repost Functions ===
+/// Creates a new Repost object owned by the reposter
+/// No contention - each repost is an independent owned object
+public(package) fun create_repost(
+    original_post_id: ID,
+    original_owner: address,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): Repost {
+    let reposter = tx_context::sender(ctx);
+    let timestamp = clock::timestamp_ms(clock);
+
+    let repost = Repost {
+        id: object::new(ctx),
+        original_post_id,
+        original_owner,
+        reposter,
+        created_at: timestamp,
+    };
+
+    event::emit(RepostEvent {
+        original_post_id,
+        reposter,
+        original_owner,
+        timestamp,
+    });
+
+    repost
+}
+
+// === Reply Functions ===
+/// Emits a reply event
+/// Replies are tracked as events only, no count updates on original post
+public(package) fun emit_reply_event(
     reply_post_id: ID,
+    original_post_id: ID,
+    original_owner: address,
     clock: &Clock,
     ctx: &TxContext,
 ) {
-    assert!(!post.is_deleted, EPostDeleted);
-    post.reply_count = post.reply_count + 1;
-    post.updated_at = clock::timestamp_ms(clock);
-
     event::emit(ReplyEvent {
         reply_post_id,
-        original_post_id: object::id(post),
+        original_post_id,
         replier: tx_context::sender(ctx),
-        original_owner: post.owner,
+        original_owner,
         timestamp: clock::timestamp_ms(clock),
     });
 }

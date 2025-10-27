@@ -22,6 +22,7 @@ const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
 const EWalletKeyAlreadyExists: u64 = 6;
 const EWalletKeyDoesNotExist: u64 = 7;
+const EWalletAddressAlreadyLinked: u64 = 8;
 
 //TODO: HAve is created via Suins here?
 public struct Profile has key, store {
@@ -85,7 +86,7 @@ public struct CreateProfileEvent has copy, drop {
     timestamp: u64,
     display_image_url: Option<String>,
     background_image_url: Option<String>,
-    wallet_addresses: VecMap<String, String>,
+    wallet_addresses: VecMap<String, vector<String>>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -97,7 +98,7 @@ public struct UpdateProfileEvent has copy, drop {
     timestamp: u64,
     display_image_url: Option<String>,
     background_image_url: Option<String>,
-    wallet_addresses: VecMap<String, String>,
+    wallet_addresses: VecMap<String, vector<String>>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -168,7 +169,7 @@ public fun background_image_url(self: &Profile): Option<String> {
     self.background_image_url
 }
 
-public fun wallet_addresses(self: &Profile): VecMap<String, String> {
+public fun wallet_addresses(self: &Profile): VecMap<String, vector<String>> {
     assert!(!self.is_archived, EArchivedProfile);
     self.wallet_addresses
 }
@@ -430,8 +431,17 @@ public(package) fun add_wallet_address(
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
     config::assert_wallet_key_is_allowed(config, &network);
 
-    assert!(!sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyAlreadyExists);
-    sui::vec_map::insert(&mut profile.wallet_addresses, network, address);
+    if (sui::vec_map::contains(&profile.wallet_addresses, &network)) {
+        // Network exists, check if address already linked
+        let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
+        assert!(!std::vector::contains(addresses, &address), EWalletAddressAlreadyLinked);
+        std::vector::push_back(addresses, address);
+    } else {
+        // New network, create vector with this address
+        let mut addresses = std::vector::empty<String>();
+        std::vector::push_back(&mut addresses, address);
+        sui::vec_map::insert(&mut profile.wallet_addresses, network, addresses);
+    };
 
     profile.updated_at = clock::timestamp_ms(clock);
 
@@ -441,7 +451,8 @@ public(package) fun add_wallet_address(
 public(package) fun update_wallet_address(
     profile: &mut Profile,
     network: String,
-    address: String,
+    old_address: String,
+    new_address: String,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
@@ -452,8 +463,11 @@ public(package) fun update_wallet_address(
 
     assert!(sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyDoesNotExist);
 
-    sui::vec_map::remove(&mut profile.wallet_addresses, &network);
-    sui::vec_map::insert(&mut profile.wallet_addresses, network, address);
+    let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
+    let (found, index) = std::vector::index_of(addresses, &old_address);
+    assert!(found, EWalletKeyDoesNotExist);
+
+    *std::vector::borrow_mut(addresses, index) = new_address;
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -462,6 +476,7 @@ public(package) fun update_wallet_address(
 public(package) fun remove_wallet_address(
     profile: &mut Profile,
     network: String,
+    address: String,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
@@ -470,7 +485,17 @@ public(package) fun remove_wallet_address(
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
     assert!(sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyDoesNotExist);
 
-    sui::vec_map::remove(&mut profile.wallet_addresses, &network);
+    let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
+    let (found, index) = std::vector::index_of(addresses, &address);
+    assert!(found, EWalletKeyDoesNotExist);
+
+    std::vector::remove(addresses, index);
+
+    // If no addresses left for this network, remove the network entry
+    if (std::vector::is_empty(addresses)) {
+        sui::vec_map::remove(&mut profile.wallet_addresses, &network);
+    };
+
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -643,7 +668,7 @@ public(package) fun create_profile_helper(
         social_accounts: sui::vec_map::empty<String, String>(),
         display_image_url,
         background_image_url,
-        wallet_addresses: sui::vec_map::empty<String, String>(),
+        wallet_addresses: sui::vec_map::empty<String, vector<String>>(),
         owner: tx_context::sender(ctx),
         following: sui::table::new(ctx),
         block_list: sui::table::new(ctx),
@@ -658,7 +683,7 @@ public(package) fun create_profile_helper(
         background_image_url,
         bio,
         url,
-        wallet_addresses: sui::vec_map::empty<String, String>(),
+        wallet_addresses: sui::vec_map::empty<String, vector<String>>(),
         owner: tx_context::sender(ctx),
     });
 

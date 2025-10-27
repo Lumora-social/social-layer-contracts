@@ -41,9 +41,10 @@ public struct Badge has copy, drop, store {
     category: String, // Badge category (e.g., "suins_portfolio")
     tier: String, // Badge tier (e.g., "name_hodler")
     display_name: String, // Human-readable name
+    description: String, // Badge description
     emoji: String, // Badge emoji
+    image_url: String, // Badge image URL (empty if using emoji)
     value: u64, // Value that qualified for this badge
-    metadata: String, // JSON metadata
     minted_at: u64, // Timestamp when badge was minted
 }
 
@@ -78,7 +79,7 @@ public struct BadgeUpdatedEvent has copy, drop {
 ///
 /// # Arguments
 /// * `profile` - The profile to mint badges for
-/// * `badges_json` - JSON string of eligible badges from backend
+/// * `badges_bcs` - BCS-encoded vector of eligible badges from backend
 /// * `signature` - Ed25519 signature from backend oracle (64 bytes)
 /// * `timestamp` - Timestamp when backend signed the attestation
 /// * `oracle_config` - Oracle configuration with public key (from social_verification module)
@@ -87,7 +88,7 @@ public struct BadgeUpdatedEvent has copy, drop {
 /// * `ctx` - Transaction context
 public fun mint_badges(
     profile: &mut Profile,
-    badges_json: String,
+    badges_bcs: vector<u8>,
     signature: vector<u8>,
     timestamp: u64,
     oracle_config: &suins_social_layer::social_verification::OracleConfig,
@@ -117,16 +118,15 @@ public fun mint_badges(
     // 5. Construct the message that should have been signed by backend
     let message = construct_badge_attestation_message(
         object::id(profile),
-        &badges_json,
+        &badges_bcs,
         timestamp,
     );
 
     // 6. Verify the backend signature
     verify_oracle_signature(&message, &oracle_public_key, &signature);
 
-    // 7. Parse badges from JSON and store/update them
-    // Note: In production, you'd parse the JSON. For now, we'll create a placeholder
-    // that demonstrates the storage pattern
+    // 7. Deserialize badges from BCS and store/update them
+    let badges = deserialize_badges(&badges_bcs, current_time);
 
     // Get or create badge collection
     let profile_id = object::id(profile);
@@ -147,11 +147,10 @@ public fun mint_badges(
         profile::uid_mut(profile),
         badge_collection_key,
     );
-    collection.last_updated = current_time;
 
-    // TODO: Parse badges_json and add/update badges
-    // For now, this is a placeholder showing the pattern
-    // In practice, you'd parse the JSON and update the badges vector
+    // Update badges (replace or add new)
+    update_badge_collection(collection, badges);
+    collection.last_updated = current_time;
 
     let badges_count = vector::length(&collection.badges);
 
@@ -167,10 +166,10 @@ public fun mint_badges(
 // === Helper Functions ===
 
 /// Constructs the badge attestation message
-/// Format: profile_id || "badges" || badges_json || timestamp
+/// Format: profile_id || "badges" || "||" || badges_bcs || "||" || timestamp
 fun construct_badge_attestation_message(
     profile_id: ID,
-    badges_json: &String,
+    badges_bcs: &vector<u8>,
     timestamp: u64,
 ): vector<u8> {
     let mut message = vector::empty<u8>();
@@ -185,14 +184,10 @@ fun construct_badge_attestation_message(
     // Add separator
     vector::append(&mut message, b"||");
 
-    // Add badges JSON
-    let badges_json_bytes = badges_json.as_bytes();
-    vector::append(&mut message, *badges_json_bytes);
+    // Add BCS-encoded badges
+    vector::append(&mut message, *badges_bcs);
 
     // Add separator
-    vector::append(&mut message, b"||");
-
-    // Empty username field (not used for badges, but keeps format consistent)
     vector::append(&mut message, b"||");
 
     // Add timestamp (8 bytes, little-endian)
@@ -200,6 +195,80 @@ fun construct_badge_attestation_message(
     vector::append(&mut message, timestamp_bytes);
 
     message
+}
+
+/// Deserialize badges from BCS encoding
+/// Note: BCS deserialization must match the backend encoding exactly
+fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
+    // Create BCS reader
+    let mut bcs_reader = bcs::new(*badges_bcs);
+
+    // Deserialize vector length
+    let badges_count = bcs::peel_vec_length(&mut bcs_reader);
+
+    let mut badges = vector::empty<Badge>();
+    let mut i = 0;
+
+    while (i < badges_count) {
+        // Deserialize each badge field in order
+        let category = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let tier = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let display_name = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let description = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let emoji = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let image_url = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let value = bcs::peel_u64(&mut bcs_reader);
+
+        let badge = Badge {
+            category,
+            tier,
+            display_name,
+            description,
+            emoji,
+            image_url,
+            value,
+            minted_at,
+        };
+
+        vector::push_back(&mut badges, badge);
+        i = i + 1;
+    };
+
+    badges
+}
+
+/// Update badge collection with new badges
+/// Replaces existing badges of the same category or adds new ones
+fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector<Badge>) {
+    let mut i = 0;
+    let len = vector::length(&new_badges);
+
+    while (i < len) {
+        let new_badge = vector::borrow(&new_badges, i);
+
+        // Check if badge category already exists
+        let mut found = false;
+        let mut j = 0;
+        let collection_len = vector::length(&collection.badges);
+
+        while (j < collection_len) {
+            let existing_badge = vector::borrow_mut(&mut collection.badges, j);
+            if (existing_badge.category == new_badge.category) {
+                // Update existing badge (tier upgrade)
+                *existing_badge = *new_badge;
+                found = true;
+                break
+            };
+            j = j + 1;
+        };
+
+        // If not found, add new badge
+        if (!found) {
+            vector::push_back(&mut collection.badges, *new_badge);
+        };
+
+        i = i + 1;
+    };
 }
 
 /// Verifies backend oracle signature
@@ -254,18 +323,20 @@ public fun create_test_badge(
     category: String,
     tier: String,
     display_name: String,
+    description: String,
     emoji: String,
+    image_url: String,
     value: u64,
-    metadata: String,
     minted_at: u64,
 ): Badge {
     Badge {
         category,
         tier,
         display_name,
+        description,
         emoji,
+        image_url,
         value,
-        metadata,
         minted_at,
     }
 }
