@@ -239,6 +239,7 @@ fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
 
 /// Update badge collection with new badges
 /// Replaces existing badges of the same category or adds new ones
+/// NO-DOWNGRADE RULE: Only updates if new badge value is higher than existing
 fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector<Badge>) {
     let mut i = 0;
     let len = vector::length(&new_badges);
@@ -254,8 +255,13 @@ fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector
         while (j < collection_len) {
             let existing_badge = vector::borrow_mut(&mut collection.badges, j);
             if (existing_badge.category == new_badge.category) {
-                // Update existing badge (tier upgrade)
-                *existing_badge = *new_badge;
+                // NO-DOWNGRADE RULE: Only update if new value is higher
+                // This prevents a "whale" from becoming a "shrimp" after minting
+                if (new_badge.value > existing_badge.value) {
+                    // Update to higher tier badge
+                    *existing_badge = *new_badge;
+                };
+                // Otherwise, keep the existing higher-tier badge
                 found = true;
                 break
             };
