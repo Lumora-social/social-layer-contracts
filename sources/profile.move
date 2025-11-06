@@ -20,7 +20,6 @@ const EProfileAlreadyExists: u64 = 2;
 const EDisplayNameNotMatching: u64 = 3;
 const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
-const EWalletKeyAlreadyExists: u64 = 6;
 const EWalletKeyDoesNotExist: u64 = 7;
 const EWalletAddressAlreadyLinked: u64 = 8;
 

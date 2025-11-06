@@ -2,7 +2,7 @@ module suins_social_layer::post_actions;
 
 use std::string::String;
 use sui::clock::Clock;
-use suins_social_layer::post::{Self, Post, Like, Repost};
+use suins_social_layer::post::{Self, Post, Like};
 use suins_social_layer::social_layer_config::Config;
 
 /// Creates a new post with content and optional attachments

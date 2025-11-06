@@ -1,1 +1,1 @@
-Failed to build Move modules: Compilation error.
+Failed to publish the Move module(s), reason: Modules must all have 0x0 as their addresses. Violated by module ModuleId { address: e0e880fb85d81259020dfd761c36521fe176627bbd1635f4e6f92c5d7460925f, name: Identifier("app") }
