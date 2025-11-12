@@ -14,7 +14,6 @@
 /// - Supports tier upgrades (never downgrades)
 module suins_social_layer::profile_badges;
 
-use std::option::{Self, Option};
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
@@ -122,7 +121,7 @@ public fun mint_badges(
     config::assert_interacting_with_most_up_to_date_package(config);
 
     // 3. Verify oracle public key is set
-    let oracle_public_key = suins_social_layer::social_verification::get_oracle_public_key(
+    let oracle_public_key: vector<u8> = suins_social_layer::social_verification::get_oracle_public_key(
         oracle_config,
     );
     assert!(vector::length(&oracle_public_key) == 32, EInvalidMessageFormat);
@@ -240,7 +239,7 @@ fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
         let tier = bcs::peel_vec_u8(&mut bcs_reader).to_string();
         let display_name = bcs::peel_vec_u8(&mut bcs_reader).to_string();
         let description = bcs::peel_vec_u8(&mut bcs_reader).to_string();
-        let emoji = bcs::peel_vec_u8(&mut bcs_reader).to_string();
+        let _emoji = bcs::peel_vec_u8(&mut bcs_reader).to_string();
 
         // Deserialize optional image_url (Option<String>)
         let has_image_url = bcs::peel_bool(&mut bcs_reader);
@@ -359,6 +358,7 @@ fun update_badge_collection_with_events(
 /// Update badge collection with new badges
 /// Replaces existing badges of the same category or adds new ones
 /// NO-DOWNGRADE RULE: Only updates if new badge value is higher than existing
+#[test_only]
 fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector<Badge>) {
     let mut i = 0;
     let len = vector::length(&new_badges);

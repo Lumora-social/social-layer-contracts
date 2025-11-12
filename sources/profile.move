@@ -21,7 +21,6 @@ const EDisplayNameNotMatching: u64 = 3;
 const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
 const EWalletKeyDoesNotExist: u64 = 7;
-const EWalletAddressAlreadyLinked: u64 = 8;
 
 //TODO: HAve is created via Suins here?
 public struct Profile has key, store {

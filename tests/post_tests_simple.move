@@ -1,4 +1,4 @@
-module suins_social_layer::social_verification_tests_simple;
+module suins_social_layer::post_tests_simple;
 
 use sui::test_scenario;
 
