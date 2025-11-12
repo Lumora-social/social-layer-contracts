@@ -14,6 +14,7 @@
 /// - Supports tier upgrades (never downgrades)
 module suins_social_layer::profile_badges;
 
+use std::option::{Self, Option};
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
@@ -42,9 +43,8 @@ public struct Badge has copy, drop, store {
     tier: String, // Badge tier (e.g., "name_hodler")
     display_name: String, // Human-readable name
     description: String, // Badge description
-    emoji: String, // Badge emoji
-    image_url: String, // Badge image URL (empty if using emoji)
-    value: u64, // Value that qualified for this badge
+    image_url: Option<String>, // Badge image URL (optional)
+    value: Option<u64>, // Value that qualified for this badge (optional)
     minted_at: u64, // Timestamp when badge was minted
 }
 
@@ -56,6 +56,7 @@ public struct BadgeCollection has store {
 
 // === Events ===
 
+/// Summary event for backward compatibility
 public struct BadgesMintedEvent has copy, drop {
     profile_id: ID,
     profile_owner: address,
@@ -63,13 +64,31 @@ public struct BadgesMintedEvent has copy, drop {
     timestamp: u64,
 }
 
-#[allow(unused_field)]
+/// Detailed event emitted for each badge that is newly minted
+public struct BadgeMintedEvent has copy, drop {
+    profile_id: ID,
+    profile_owner: address,
+    category: String,
+    tier: String,
+    display_name: String,
+    description: String,
+    image_url: Option<String>,
+    value: Option<u64>,
+    timestamp: u64,
+}
+
+/// Detailed event emitted when a badge is upgraded to a higher tier
 public struct BadgeUpdatedEvent has copy, drop {
     profile_id: ID,
     profile_owner: address,
     category: String,
     old_tier: String,
     new_tier: String,
+    old_value: Option<u64>,
+    new_value: Option<u64>,
+    display_name: String,
+    description: String,
+    image_url: Option<String>,
     timestamp: u64,
 }
 
@@ -148,13 +167,19 @@ public fun mint_badges(
         badge_collection_key,
     );
 
-    // Update badges (replace or add new)
-    update_badge_collection(collection, badges);
+    // Update badges (replace or add new) and emit detailed events
+    update_badge_collection_with_events(
+        collection,
+        badges,
+        profile_id,
+        profile_owner,
+        current_time,
+    );
     collection.last_updated = current_time;
 
     let badges_count = vector::length(&collection.badges);
 
-    // 8. Emit event
+    // 8. Emit summary event for backward compatibility
     event::emit(BadgesMintedEvent {
         profile_id,
         profile_owner,
@@ -216,15 +241,28 @@ fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
         let display_name = bcs::peel_vec_u8(&mut bcs_reader).to_string();
         let description = bcs::peel_vec_u8(&mut bcs_reader).to_string();
         let emoji = bcs::peel_vec_u8(&mut bcs_reader).to_string();
-        let image_url = bcs::peel_vec_u8(&mut bcs_reader).to_string();
-        let value = bcs::peel_u64(&mut bcs_reader);
+
+        // Deserialize optional image_url (Option<String>)
+        let has_image_url = bcs::peel_bool(&mut bcs_reader);
+        let image_url = if (has_image_url) {
+            option::some(bcs::peel_vec_u8(&mut bcs_reader).to_string())
+        } else {
+            option::none()
+        };
+
+        // Deserialize optional value (Option<u64>)
+        let has_value = bcs::peel_bool(&mut bcs_reader);
+        let value = if (has_value) {
+            option::some(bcs::peel_u64(&mut bcs_reader))
+        } else {
+            option::none()
+        };
 
         let badge = Badge {
             category,
             tier,
             display_name,
             description,
-            emoji,
             image_url,
             value,
             minted_at,
@@ -235,6 +273,87 @@ fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
     };
 
     badges
+}
+
+/// Update badge collection with new badges and emit detailed events
+/// Replaces existing badges of the same category or adds new ones
+/// NO-DOWNGRADE RULE: Only updates if new badge value is higher than existing
+fun update_badge_collection_with_events(
+    collection: &mut BadgeCollection,
+    new_badges: vector<Badge>,
+    profile_id: ID,
+    profile_owner: address,
+    timestamp: u64,
+) {
+    let mut i = 0;
+    let len = vector::length(&new_badges);
+
+    while (i < len) {
+        let new_badge = vector::borrow(&new_badges, i);
+
+        // Check if badge category already exists
+        let mut found = false;
+        let mut j = 0;
+        let collection_len = vector::length(&collection.badges);
+
+        while (j < collection_len) {
+            let existing_badge = vector::borrow_mut(&mut collection.badges, j);
+            if (existing_badge.category == new_badge.category) {
+                // NO-DOWNGRADE RULE: Only update if new value is higher
+                let should_update = if (
+                    option::is_some(&new_badge.value) && option::is_some(&existing_badge.value)
+                ) {
+                    let new_val = *option::borrow(&new_badge.value);
+                    let existing_val = *option::borrow(&existing_badge.value);
+                    new_val > existing_val
+                } else {
+                    true
+                };
+
+                if (should_update) {
+                    // Emit update event
+                    let old_tier = existing_badge.tier;
+                    let old_value = existing_badge.value;
+                    event::emit(BadgeUpdatedEvent {
+                        profile_id,
+                        profile_owner,
+                        category: new_badge.category,
+                        old_tier,
+                        new_tier: new_badge.tier,
+                        old_value,
+                        new_value: new_badge.value,
+                        display_name: new_badge.display_name,
+                        description: new_badge.description,
+                        image_url: new_badge.image_url,
+                        timestamp,
+                    });
+                    // Update to higher tier badge
+                    *existing_badge = *new_badge;
+                };
+                found = true;
+                break
+            };
+            j = j + 1;
+        };
+
+        // If not found, add new badge and emit mint event
+        if (!found) {
+            event::emit(BadgeMintedEvent {
+                profile_id,
+                profile_owner,
+                category: new_badge.category,
+                tier: new_badge.tier,
+                display_name: new_badge.display_name,
+                description: new_badge.description,
+                image_url: new_badge.image_url,
+                value: new_badge.value,
+                timestamp,
+            });
+            vector::push_back(&mut collection.badges, *new_badge);
+        };
+
+        i = i + 1;
+    };
 }
 
 /// Update badge collection with new badges
@@ -257,7 +376,19 @@ fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector
             if (existing_badge.category == new_badge.category) {
                 // NO-DOWNGRADE RULE: Only update if new value is higher
                 // This prevents a "whale" from becoming a "shrimp" after minting
-                if (new_badge.value > existing_badge.value) {
+                // Compare optional values: if both have values, compare them; otherwise allow update
+                let should_update = if (
+                    option::is_some(&new_badge.value) && option::is_some(&existing_badge.value)
+                ) {
+                    let new_val = *option::borrow(&new_badge.value);
+                    let existing_val = *option::borrow(&existing_badge.value);
+                    new_val > existing_val
+                } else {
+                    // If new has value but existing doesn't, or both are none, allow update
+                    true
+                };
+
+                if (should_update) {
                     // Update to higher tier badge
                     *existing_badge = *new_badge;
                 };
@@ -330,9 +461,8 @@ public fun create_test_badge(
     tier: String,
     display_name: String,
     description: String,
-    emoji: String,
-    image_url: String,
-    value: u64,
+    image_url: Option<String>,
+    value: Option<u64>,
     minted_at: u64,
 ): Badge {
     Badge {
@@ -340,7 +470,6 @@ public fun create_test_badge(
         tier,
         display_name,
         description,
-        emoji,
         image_url,
         value,
         minted_at,

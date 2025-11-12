@@ -173,6 +173,14 @@ public fun wallet_addresses(self: &Profile): VecMap<String, vector<String>> {
     self.wallet_addresses
 }
 
+public(package) fun get_social_account_username(self: &Profile, platform: &String): Option<String> {
+    if (sui::vec_map::contains(&self.social_accounts, platform)) {
+        option::some(*sui::vec_map::get(&self.social_accounts, platform))
+    } else {
+        option::none()
+    }
+}
+
 public fun owner(self: &Profile): address {
     assert!(!self.is_archived, EArchivedProfile);
     self.owner
@@ -433,8 +441,11 @@ public(package) fun add_wallet_address(
     if (sui::vec_map::contains(&profile.wallet_addresses, &network)) {
         // Network exists, check if address already linked
         let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
-        assert!(!std::vector::contains(addresses, &address), EWalletAddressAlreadyLinked);
-        std::vector::push_back(addresses, address);
+        let found = std::vector::contains(addresses, &address);
+        // assert!(!std::vector::contains(addresses, &address), EWalletAddressAlreadyLinked);
+        if (!found) {
+            std::vector::push_back(addresses, address);
+        }
     } else {
         // New network, create vector with this address
         let mut addresses = std::vector::empty<String>();
@@ -822,10 +833,19 @@ fun assert_display_name_matches_with_suins(
     assert!(expected_name == display_name, EDisplayNameNotMatching);
 }
 
-public(package) fun link_social_account(profile: &mut Profile, platform: String, username: String) {
+public(package) fun link_social_account(
+    profile: &mut Profile,
+    platform: String,
+    username: String,
+    clock: &Clock,
+) {
     sui::vec_map::insert(&mut profile.social_accounts, platform, username);
+    profile.updated_at = clock::timestamp_ms(clock);
 }
 
-public(package) fun unlink_social_account(profile: &mut Profile, platform: &String) {
-    sui::vec_map::remove(&mut profile.social_accounts, platform);
+public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, clock: &Clock) {
+    if (sui::vec_map::contains(&profile.social_accounts, platform)) {
+        sui::vec_map::remove(&mut profile.social_accounts, platform);
+        profile.updated_at = clock::timestamp_ms(clock);
+    };
 }
