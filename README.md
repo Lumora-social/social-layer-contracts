@@ -75,10 +75,12 @@ Entry functions for creating and interacting with posts in a Twitter-like social
 #### Post Management
 
 - `create_post(content, attachment_ids, config, clock)` - Creates a new post owned by the sender
+
   - **Returns:** Post object transferred to sender
   - **Parallelism:** ✅ Fully parallel, no contention
 
 - `update_post(post, content, attachment_ids, config, clock)` - Updates an existing post
+
   - **Requires:** User must own the post object
   - **Parallelism:** ✅ Fully parallel, operates on owned object
 
@@ -91,18 +93,21 @@ Entry functions for creating and interacting with posts in a Twitter-like social
 All interaction functions create independent owned objects, enabling unlimited parallelism:
 
 - `like_post(post_id, post_owner, clock)` - Likes a post
+
   - **Creates:** Like object owned by liker
   - **Parameters:** Post ID and owner address (no object reference needed)
   - **Parallelism:** ✅ Perfect - thousands of users can like simultaneously
   - **Event:** Emits `LikePostEvent` for indexer to track count
 
 - `unlike_post(like, clock)` - Unlikes a post
+
   - **Deletes:** User's Like object
   - **Requires:** User must own the Like object
   - **Parallelism:** ✅ Fully parallel, operates on owned object
   - **Event:** Emits `UnlikePostEvent` for indexer to decrement count
 
 - `repost(original_post_id, original_owner, clock)` - Reposts a post
+
   - **Creates:** Repost object owned by reposter
   - **Parameters:** Original post ID and owner address
   - **Parallelism:** ✅ Perfect - thousands of users can repost simultaneously
@@ -117,6 +122,7 @@ All interaction functions create independent owned objects, enabling unlimited p
 #### Data Model
 
 **Post Object** (owned by creator):
+
 ```move
 struct Post {
     id: UID,
@@ -130,6 +136,7 @@ struct Post {
 ```
 
 **Like Object** (owned by liker):
+
 ```move
 struct Like {
     id: UID,
@@ -141,6 +148,7 @@ struct Like {
 ```
 
 **Repost Object** (owned by reposter):
+
 ```move
 struct Repost {
     id: UID,
@@ -156,6 +164,7 @@ struct Repost {
 Traditional social media designs on blockchain often use shared objects with counters (likes_count, repost_count). This creates severe contention:
 
 ❌ **Bad Design (Contention):**
+
 ```move
 // DON'T DO THIS - causes bottleneck
 struct Post {
@@ -163,15 +172,18 @@ struct Post {
     likes_count: u64,              // Requires exclusive access
 }
 ```
+
 Problem: When 1000 users try to like the same post, they must wait in sequence.
 
 ✅ **Good Design (Parallelism):**
+
 ```move
 // DO THIS - enables parallelism
 struct Like {
     post_id: ID,  // Just a reference, no exclusive access needed
 }
 ```
+
 Solution: Each user creates their own Like object. All 1000 transactions execute in parallel.
 
 The indexer aggregates events to provide counts for the frontend, giving users a Twitter-like experience while maintaining blockchain scalability.

@@ -3,7 +3,7 @@ module suins_social_layer::social_layer_config;
 use std::string::String;
 use sui::types;
 use suins_social_layer::app::AdminCap;
-use suins_social_layer::social_layer_constants as constants;
+use suins_social_layer::social_layer_constants;
 
 const ENotLatestVersion: u64 = 0;
 const ETypeNotOneTimeWitness: u64 = 1;
@@ -56,11 +56,11 @@ public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext
     let config = Config {
         id: object::new(ctx),
         version: 1,
-        display_name_min_length: constants::display_name_min_length(),
-        display_name_max_length: constants::display_name_max_length(),
-        bio_min_length: constants::bio_min_length(),
-        bio_max_length: constants::bio_max_length(),
-        allowed_wallet_keys: constants::allowed_wallet_keys(),
+        display_name_min_length: social_layer_constants::display_name_min_length(),
+        display_name_max_length: social_layer_constants::display_name_max_length(),
+        bio_min_length: social_layer_constants::bio_min_length(),
+        bio_max_length: social_layer_constants::bio_max_length(),
+        allowed_wallet_keys: social_layer_constants::allowed_wallet_keys(),
         config_manager: tx_context::sender(ctx),
     };
 
@@ -228,11 +228,11 @@ public fun test_create_config(ctx: &mut TxContext) {
     let config = Config {
         id: object::new(ctx),
         version: 1,
-        display_name_min_length: constants::display_name_min_length(),
-        display_name_max_length: constants::display_name_max_length(),
-        bio_min_length: constants::bio_min_length(),
-        bio_max_length: constants::bio_max_length(),
-        allowed_wallet_keys: constants::allowed_wallet_keys(),
+        display_name_min_length: social_layer_constants::display_name_min_length(),
+        display_name_max_length: social_layer_constants::display_name_max_length(),
+        bio_min_length: social_layer_constants::bio_min_length(),
+        bio_max_length: social_layer_constants::bio_max_length(),
+        allowed_wallet_keys: social_layer_constants::allowed_wallet_keys(),
         config_manager: tx_context::sender(ctx),
     };
     transfer::share_object(config)

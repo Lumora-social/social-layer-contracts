@@ -82,19 +82,6 @@ public struct MultiChainWalletUnlinkedEvent has copy, drop {
 
 /// Links a Sui wallet to a profile with cryptographic proof
 ///
-/// # Arguments
-/// * `profile` - The profile to link the wallet to
-/// * `wallet_to_link` - Address of the wallet being linked
-/// * `public_key` - Ed25519 public key of wallet_to_link (32 bytes)
-/// * `signature` - Ed25519 signature from wallet_to_link (64 bytes)
-/// * `timestamp` - Timestamp when the message was signed
-/// * `nonce` - Unique nonce to prevent replay attacks
-/// * `nonce_registry` - Shared registry to track used nonces
-/// * `config` - Config object
-/// * `clock` - Clock for timestamp validation
-/// * `ctx` - Transaction context
-///
-/// # Message Format
 /// The signed message must be: profile_id || wallet_to_link || timestamp || nonce
 /// where || represents concatenation
 public fun link_sui_wallet(
@@ -186,7 +173,6 @@ public fun unlink_sui_wallet(
 }
 
 /// Links an Ethereum/Bitcoin wallet using ECDSA secp256k1 signature
-/// Message format: profile_id || chain || wallet_address || timestamp || nonce
 public fun link_evm_wallet(
     profile: &mut Profile,
     chain: String, // "ethereum", "bitcoin", etc.
@@ -242,7 +228,6 @@ public fun link_evm_wallet(
 }
 
 /// Links a Solana wallet using Ed25519 signature
-/// Message format: profile_id || chain || wallet_address || timestamp || nonce
 public fun link_solana_wallet(
     profile: &mut Profile,
     wallet_address: String,

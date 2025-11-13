@@ -22,6 +22,7 @@ use sui::ed25519;
 use sui::event;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
+use suins_social_layer::social_verification::{get_oracle_public_key, OracleConfig};
 
 // === Errors ===
 #[error]
@@ -94,22 +95,12 @@ public struct BadgeUpdatedEvent has copy, drop {
 // === Public Functions ===
 
 /// Mint or update badges on a profile with backend attestation
-///
-/// # Arguments
-/// * `profile` - The profile to mint badges for
-/// * `badges_bcs` - BCS-encoded vector of eligible badges from backend
-/// * `signature` - Ed25519 signature from backend oracle (64 bytes)
-/// * `timestamp` - Timestamp when backend signed the attestation
-/// * `oracle_config` - Oracle configuration with public key (from social_verification module)
-/// * `config` - Config object
-/// * `clock` - Clock for timestamp validation
-/// * `ctx` - Transaction context
 public fun mint_badges(
     profile: &mut Profile,
     badges_bcs: vector<u8>,
     signature: vector<u8>,
     timestamp: u64,
-    oracle_config: &suins_social_layer::social_verification::OracleConfig,
+    oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
     ctx: &TxContext,
@@ -121,7 +112,7 @@ public fun mint_badges(
     config::assert_interacting_with_most_up_to_date_package(config);
 
     // 3. Verify oracle public key is set
-    let oracle_public_key: vector<u8> = suins_social_layer::social_verification::get_oracle_public_key(
+    let oracle_public_key: vector<u8> = get_oracle_public_key(
         oracle_config,
     );
     assert!(vector::length(&oracle_public_key) == 32, EInvalidMessageFormat);
