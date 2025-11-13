@@ -35,14 +35,13 @@ const ATTESTATION_VALIDITY_MS: u64 = 600000;
 public struct OracleConfig has key {
     id: UID,
     // Ed25519 public key of the backend oracle (32 bytes)
-    public_key: vector<u8>, //TODO: More than one?
+    public_key: vector<u8>,
     // Admin who can update the public key
     admin: address,
 }
 
 /// Initialization function
 fun init(ctx: &mut TxContext) {
-    // TODO: Set actual backend public key during deployment
     let oracle_config = OracleConfig {
         id: object::new(ctx),
         public_key: vector::empty<u8>(), // To be set by admin
@@ -253,7 +252,6 @@ fun construct_attestation_message(
     let mut message = vector::empty<u8>();
 
     // Add profile ID (32 bytes)
-    //TODO: Assert nummber of bytes is correcT????
     let profile_id_bytes = object::id_to_bytes(&profile_id);
     vector::append(&mut message, profile_id_bytes);
 

@@ -22,7 +22,6 @@ const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
 const EWalletKeyDoesNotExist: u64 = 7;
 
-//TODO: HAve is created via Suins here?
 public struct Profile has key, store {
     id: UID,
     owner: address,
@@ -193,7 +192,6 @@ public fun uid(self: &Profile): &UID {
     &self.id
 }
 
-// TODO: Dangerous?
 public fun uid_mut(self: &mut Profile): &mut UID {
     &mut self.id
 }
