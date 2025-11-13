@@ -950,7 +950,6 @@ Each badge is encoded as:
 - `tier` (String) - e.g., "name_hodler", "whale"
 - `display_name` (String) - e.g., "SuiNS Holder"
 - `description` (String) - e.g., "Owns 5+ SuiNS domains"
-- `emoji` (String) - Optional emoji
 - `image_url` (String) - Optional badge image URL
 - `value` (u64) - Optional numeric value that qualified
 
@@ -1075,7 +1074,6 @@ let badges = deserialize_badges(&badges_bcs, current_time);
    - Deserialize tier (String)
    - Deserialize display_name (String)
    - Deserialize description (String)
-   - Deserialize emoji (String) - currently unused but in BCS
    - Deserialize image_url (Option<String>)
    - Deserialize value (Option<u64>)
    - Set `minted_at` to current time

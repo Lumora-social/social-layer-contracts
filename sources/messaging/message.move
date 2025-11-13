@@ -2,7 +2,6 @@ module suins_social_layer::message;
 
 use sui::clock::{Self, Clock};
 use sui::event;
-use suins_social_layer::dm_whitelist::{DM_Whitelist, sender, receiver};
 
 // === Events ===
 public struct CreateMessageEvent has copy, drop {
@@ -81,7 +80,7 @@ fun emit_delete_message_event(message: &Message, clock: &Clock) {
 //     (sender == receiver(dm_whitelist) && receiver == sender(dm_whitelist))
 // }
 
-public entry fun create_message(
+public fun create_message(
     sender: address,
     receiver: address,
     encryptedData: vector<u8>,
@@ -103,14 +102,14 @@ public entry fun create_message(
     transfer::public_transfer(message, ctx.sender());
 }
 
-public entry fun edit_message(message: &mut Message, encryptedData: vector<u8>, clock: &Clock) {
+public fun edit_message(message: &mut Message, encryptedData: vector<u8>, clock: &Clock) {
     message.encryptedData = encryptedData;
     message.updated_at = clock::timestamp_ms(clock);
 
     emit_edit_message_event(message, clock);
 }
 
-public entry fun delete_message(message: Message, clock: &Clock) {
+public fun delete_message(message: Message, clock: &Clock) {
     emit_delete_message_event(&message, clock);
 
     let Message {

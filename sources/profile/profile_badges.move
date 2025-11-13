@@ -103,7 +103,7 @@ public fun mint_badges(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     // 1. Verify sender is profile owner
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
@@ -230,7 +230,6 @@ fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
         let tier = bcs::peel_vec_u8(&mut bcs_reader).to_string();
         let display_name = bcs::peel_vec_u8(&mut bcs_reader).to_string();
         let description = bcs::peel_vec_u8(&mut bcs_reader).to_string();
-        let _emoji = bcs::peel_vec_u8(&mut bcs_reader).to_string();
 
         // Deserialize optional image_url (Option<String>)
         let has_image_url = bcs::peel_bool(&mut bcs_reader);

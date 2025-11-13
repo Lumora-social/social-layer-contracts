@@ -66,7 +66,7 @@ public struct OraclePublicKeyUpdatedEvent has copy, drop {
 public fun update_oracle_public_key(
     oracle_config: &mut OracleConfig,
     new_public_key: vector<u8>,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
     assert!(vector::length(&new_public_key) == 32, EInvalidMessageFormat);
@@ -82,7 +82,7 @@ public fun update_oracle_public_key(
 }
 
 /// Transfers admin rights to a new address
-public fun transfer_admin(oracle_config: &mut OracleConfig, new_admin: address, ctx: &TxContext) {
+public fun transfer_admin(oracle_config: &mut OracleConfig, new_admin: address, ctx: &mut TxContext) {
     assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
     oracle_config.admin = new_admin;
 }
@@ -101,7 +101,7 @@ public fun link_twitter_account(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     link_social_account_internal(
         profile,
@@ -125,7 +125,7 @@ public fun link_discord_account(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     link_social_account_internal(
         profile,
@@ -149,7 +149,7 @@ public fun link_telegram_account(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     link_social_account_internal(
         profile,
@@ -173,7 +173,7 @@ public fun link_google_account(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     link_social_account_internal(
         profile,
@@ -198,7 +198,7 @@ fun link_social_account_internal(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
 
@@ -234,7 +234,7 @@ public fun unlink_social_account(
     platform: String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
     config::assert_interacting_with_most_up_to_date_package(config);

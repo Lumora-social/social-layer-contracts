@@ -94,7 +94,7 @@ public fun link_sui_wallet(
     nonce_registry: &mut NonceRegistry,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     // 1. Verify sender is profile owner
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
@@ -157,7 +157,7 @@ public fun unlink_sui_wallet(
     wallet_address: String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
     config::assert_interacting_with_most_up_to_date_package(config);
@@ -184,7 +184,7 @@ public fun link_evm_wallet(
     nonce_registry: &mut NonceRegistry,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     // 1. Verify sender is profile owner
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
@@ -238,7 +238,7 @@ public fun link_solana_wallet(
     nonce_registry: &mut NonceRegistry,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     // 1. Verify sender is profile owner
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
@@ -289,7 +289,7 @@ public fun unlink_wallet(
     wallet_address: String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
     config::assert_interacting_with_most_up_to_date_package(config);
