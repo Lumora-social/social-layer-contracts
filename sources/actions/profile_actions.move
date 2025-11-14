@@ -298,10 +298,10 @@ public fun link_social_account(
 /// Unlinks a social account from a profile
 public fun unlink_social_account(
     profile: &mut Profile,
-    platform: String,
+    platform: &String,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     social_verification::unlink_social_account(
         profile,

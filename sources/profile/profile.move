@@ -81,6 +81,7 @@ public struct CreateProfileEvent has copy, drop {
     display_image_url: Option<String>,
     background_image_url: Option<String>,
     wallet_addresses: VecMap<String, vector<String>>,
+    social_accounts: VecMap<String, String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -93,6 +94,7 @@ public struct UpdateProfileEvent has copy, drop {
     display_image_url: Option<String>,
     background_image_url: Option<String>,
     wallet_addresses: VecMap<String, vector<String>>,
+    social_accounts: VecMap<String, String>,
     url: Option<String>,
     bio: Option<String>,
 }
@@ -652,14 +654,15 @@ public(package) fun create_profile_helper(
 
     event::emit(CreateProfileEvent {
         profile_id: object::id(&profile),
+        owner: tx_context::sender(ctx),
         display_name: profile.display_name,
         timestamp: clock::timestamp_ms(clock),
         display_image_url,
         background_image_url,
-        bio,
-        url,
         wallet_addresses: sui::vec_map::empty<String, vector<String>>(),
-        owner: tx_context::sender(ctx),
+        social_accounts: profile.social_accounts,
+        url,
+        bio,
     });
 
     profile
@@ -795,17 +798,21 @@ public(package) fun link_social_account(
 
     sui::vec_map::insert(&mut profile.social_accounts, platform, username);
     profile.updated_at = clock::timestamp_ms(clock);
+
+    emit_update_profile_event(profile, clock);
 }
 
-public(package) fun unlink_social_account(profile: &mut Profile, platform: String, config: &Config, clock: &Clock, ctx: &TxContext) {
+public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, config: &Config, clock: &Clock, ctx: &TxContext) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
-    config::assert_social_platform_is_allowed(config, &platform);
+    config::assert_social_platform_is_allowed(config, platform);
 
-    if (sui::vec_map::contains(&profile.social_accounts, &platform)) {
-        sui::vec_map::remove(&mut profile.social_accounts, &platform);
+    if (sui::vec_map::contains(&profile.social_accounts, platform)) {
+        sui::vec_map::remove(&mut profile.social_accounts, platform);
         profile.updated_at = clock::timestamp_ms(clock);
+
+        emit_update_profile_event(profile, clock);
     };
 }
 
@@ -818,6 +825,7 @@ fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
         display_image_url: profile.display_image_url,
         background_image_url: profile.background_image_url,
         wallet_addresses: profile.wallet_addresses,
+        social_accounts: profile.social_accounts,
         url: profile.url,
         bio: profile.bio,
     });

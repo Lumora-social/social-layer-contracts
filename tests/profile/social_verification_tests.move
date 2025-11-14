@@ -59,16 +59,18 @@ fun test_unlink_social_account() {
 
     // Unlink social account
     next_tx(&mut scenario, user_address);
+    let platform = b"twitter".to_string();
     social_verification::unlink_social_account(
         &mut profile,
-        b"twitter".to_string(),
+        &platform,
         &config,
         &clock,
         ctx(&mut scenario),
     );
 
     // Verify account was unlinked
-    let username = profile::get_social_account_username(&profile, &b"twitter".to_string());
+    let platform_check = b"twitter".to_string();
+    let username = profile::get_social_account_username(&profile, &platform_check);
     assert!(option::is_none(&username), 0);
 
     // Cleanup

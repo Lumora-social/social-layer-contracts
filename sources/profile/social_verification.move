@@ -89,10 +89,10 @@ public fun link_social_account(
 /// No oracle verification needed for unlinking
 public fun unlink_social_account(
     profile: &mut Profile,
-    platform: String,
+    platform: &String,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     profile::unlink_social_account(
         profile,

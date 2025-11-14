@@ -33,7 +33,7 @@ const MAX_CLOCK_SKEW_MS: u64 = 5000;
 /// Link a wallet to a profile using backend attestation
 /// Supports ETH, BTC, SOL, and SUI chains
 /// The chain parameter must be one of the allowed wallet keys
-public fun link_chain_wallet(
+public(package) fun link_chain_wallet(
     profile: &mut Profile,
     chain: String,
     wallet_address: String,
@@ -60,7 +60,7 @@ public fun link_chain_wallet(
     );
 }
 
-public fun unlink_chain_wallet(
+public(package) fun unlink_chain_wallet(
     profile: &mut Profile,
     chain: String,
     wallet_address: String,
