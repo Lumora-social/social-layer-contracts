@@ -1,13 +1,13 @@
-/// Module for verifying social media accounts (Twitter, Discord, Telegram)
-/// using backend oracle signatures
+/// Module for securely linking external social accounts to profiles using backend attestation
 ///
 /// Security Model:
-/// 1. Backend performs OAuth with social platform
-/// 2. Backend verifies user owns the account
-/// 3. Backend signs attestation: profile_id || platform || username || timestamp
-/// 4. User submits attestation to blockchain
-/// 5. Smart contract verifies signature using backend's public key
-/// 6. Links social account to profile if valid
+/// 1. User verifies social account ownership off-chain
+/// 2. Backend verifies the social account ownership
+/// 3. Backend creates attestation: profile_id || platform || username || timestamp
+/// 4. Backend signs attestation with oracle private key (Ed25519)
+/// 5. User submits attestation to blockchain
+/// 6. Smart contract verifies backend's signature
+/// 7. Social account is linked to profile if valid
 module suins_social_layer::social_verification;
 
 use std::string::String;
@@ -19,17 +19,20 @@ use suins_social_layer::social_layer_config::{Self as config, Config};
 
 // === Errors ===
 #[error]
-const ETimestampExpired: u64 = 0;
-const ESenderNotOwner: u64 = 1;
+const ETimestampExpired: u64 = 1;
+const ESenderNotOwner: u64 = 2;
 
 // Attestation validity window: 10 minutes (600,000 milliseconds)
 const ATTESTATION_VALIDITY_MS: u64 = 600000;
+// Maximum allowed clock skew: 5 seconds (5,000 milliseconds)
+// This prevents accepting attestations with timestamps too far in the future
+const MAX_CLOCK_SKEW_MS: u64 = 5000;
 
 // === Public Functions ===
 
-/// Unified function to link any social account to a profile with backend attestation
-/// Validates that the platform is in the allowed list from config
-public(package) fun link_social_account(
+/// Link a social account to a profile using backend attestation
+/// Supports Twitter, Discord, Telegram, Google, etc.
+public fun link_social_account(
     profile: &mut Profile,
     platform: String,
     username: String,
@@ -40,81 +43,71 @@ public(package) fun link_social_account(
     clock: &Clock,
     ctx: &TxContext,
 ) {
-    // Validate platform is allowed
-    config::assert_social_platform_is_allowed(config, &platform);
-
-    link_social_account_internal(
-        profile,
-        platform,
-        username,
-        signature,
-        timestamp,
-        oracle_config,
-        config,
-        clock,
-        ctx,
-    );
-}
-
-/// Internal function to link social accounts
-fun link_social_account_internal(
-    profile: &mut Profile,
-    platform: String,
-    username: String,
-    signature: vector<u8>,
-    timestamp: u64,
-    oracle_config: &OracleConfig,
-    config: &Config,
-    clock: &Clock,
-    ctx: &TxContext,
-) {
+    // 1. Verify sender is profile owner
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
 
+    // 2. Verify config is up to date
     config::assert_interacting_with_most_up_to_date_package(config);
 
+    // 3. Verify platform is allowed
+    config::assert_social_platform_is_allowed(config, &platform);
+
+    // 4. Verify oracle public key is set
     let oracle_public_key = oracle_utils::get_oracle_public_key(oracle_config);
     oracle_utils::validate_oracle_public_key(&oracle_public_key);
 
+    // 5. Verify timestamp is valid (not too far in future, not expired)
     let current_time = clock::timestamp_ms(clock);
-    assert!(
-        current_time >= timestamp && current_time - timestamp <= ATTESTATION_VALIDITY_MS,
-        ETimestampExpired,
-    );
+    // Reject timestamps too far in the future (clock skew protection)
+    assert!(timestamp <= current_time + MAX_CLOCK_SKEW_MS, ETimestampExpired);
+    // Reject expired timestamps (older than validity window)
+    assert!(current_time - timestamp <= ATTESTATION_VALIDITY_MS, ETimestampExpired);
 
-    let message = construct_attestation_message(
+    // 6. Construct the message that should have been signed by backend
+    let message = construct_social_link_attestation_message(
         object::id(profile),
         &platform,
         &username,
         timestamp,
     );
 
-    oracle_utils::verify_oracle_signature(
-        &message,
-        &oracle_public_key,
-        &signature,
-    );
+    // 7. Verify the backend signature
+    oracle_utils::verify_oracle_signature(&message, &oracle_public_key, &signature);
 
-    profile::link_social_account(profile, platform, username, clock);
+    // 8. Link social account to profile
+    profile::link_social_account(
+        profile,
+        platform,
+        username,
+        config,
+        clock,
+        ctx,
+    );
 }
 
-/// Unlinks a social account from a profile
+/// Unlink a social account from a profile
+/// No oracle verification needed for unlinking
 public fun unlink_social_account(
     profile: &mut Profile,
     platform: String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
-    assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
-    config::assert_interacting_with_most_up_to_date_package(config);
-
-    profile::unlink_social_account(profile, &platform, clock);
+    profile::unlink_social_account(
+        profile,
+        platform,
+        config,
+        clock,
+        ctx,
+    );
 }
 
-/// Constructs the attestation message
-/// Format: profile_id || platform || username || timestamp
-fun construct_attestation_message(
-    profile_id: ID,
+/// Constructs the social link attestation message
+/// Format: profile_id || platform || "||" || username || "||" || timestamp
+/// This MUST match the backend message construction exactly
+fun construct_social_link_attestation_message(
+    profile_id: object::ID,
     platform: &String,
     username: &String,
     timestamp: u64,
@@ -125,14 +118,14 @@ fun construct_attestation_message(
     let profile_id_bytes = object::id_to_bytes(&profile_id);
     vector::append(&mut message, profile_id_bytes);
 
-    // Add platform name
+    // Add platform name (UTF-8 bytes)
     let platform_bytes = platform.as_bytes();
     vector::append(&mut message, *platform_bytes);
 
-    // Add separator (to prevent collision attacks)
+    // Add separator
     vector::append(&mut message, b"||");
 
-    // Add username
+    // Add username (UTF-8 bytes)
     let username_bytes = username.as_bytes();
     vector::append(&mut message, *username_bytes);
 

@@ -30,14 +30,14 @@ const ESenderNotOwner: u64 = 2;
 
 // Attestation validity window: 10 minutes (600,000 milliseconds)
 const ATTESTATION_VALIDITY_MS: u64 = 600000;
+// Maximum allowed clock skew: 5 seconds (5,000 milliseconds)
+// This prevents accepting attestations with timestamps too far in the future
+const MAX_CLOCK_SKEW_MS: u64 = 5000;
 
 // Badge collection dynamic field key
 const BADGE_COLLECTION_KEY: vector<u8> = b"badge_collection";
 
-// === Structs ===
-
 /// Badge data stored on profile
-#[allow(unused_field)]
 public struct Badge has copy, drop, store {
     category: String, // Badge category (e.g., "suins_portfolio")
     tier: String, // Badge tier (e.g., "name_hodler")
@@ -53,8 +53,6 @@ public struct BadgeCollection has store {
     badges: vector<Badge>,
     last_updated: u64,
 }
-
-// === Events ===
 
 /// Detailed event emitted for each badge that is newly minted
 public struct BadgeMintedEvent has copy, drop {
@@ -107,12 +105,12 @@ public fun mint_badges(
     let oracle_public_key = oracle_utils::get_oracle_public_key(oracle_config);
     oracle_utils::validate_oracle_public_key(&oracle_public_key);
 
-    // 4. Verify timestamp hasn't expired
+    // 4. Verify timestamp is valid (not too far in future, not expired)
     let current_time = clock::timestamp_ms(clock);
-    assert!(
-        current_time >= timestamp && current_time - timestamp <= ATTESTATION_VALIDITY_MS,
-        ETimestampExpired,
-    );
+    // Reject timestamps too far in the future (clock skew protection)
+    assert!(timestamp <= current_time + MAX_CLOCK_SKEW_MS, ETimestampExpired);
+    // Reject expired timestamps (older than validity window)
+    assert!(current_time - timestamp <= ATTESTATION_VALIDITY_MS, ETimestampExpired);
 
     // 5. Construct the message that should have been signed by backend
     let message = construct_badge_attestation_message(
@@ -158,8 +156,6 @@ public fun mint_badges(
     collection.last_updated = current_time;
 }
 
-// === Helper Functions ===
-
 /// Constructs the badge attestation message
 /// Format: profile_id || "badges" || "||" || badges_bcs || "||" || timestamp
 fun construct_badge_attestation_message(
@@ -193,7 +189,6 @@ fun construct_badge_attestation_message(
 }
 
 /// Deserialize badges from BCS encoding
-/// Note: BCS deserialization must match the backend encoding exactly
 fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
     // Create BCS reader
     let mut bcs_reader = bcs::new(*badges_bcs);
@@ -239,7 +234,6 @@ fun deserialize_badges(badges_bcs: &vector<u8>, minted_at: u64): vector<Badge> {
     badges
 }
 
-/// Helper: Check if badge should be updated based on NO-DOWNGRADE RULE
 /// Only updates if new badge tier_number is higher than existing
 fun should_update_badge(new_badge: &Badge, existing_badge: &Badge): bool {
     new_badge.tier_number > existing_badge.tier_number
@@ -261,7 +255,6 @@ fun find_badge_by_category(collection: &BadgeCollection, category: &String): (bo
 
 /// Update badge collection with new badges and emit detailed events
 /// Replaces existing badges of the same category or adds new ones
-/// NO-DOWNGRADE RULE: Only updates if new badge value is higher than existing
 fun update_badge_collection_with_events(
     collection: &mut BadgeCollection,
     new_badges: vector<Badge>,
@@ -318,32 +311,6 @@ fun update_badge_collection_with_events(
     };
 }
 
-/// Update badge collection with new badges (test-only, no events)
-/// Replaces existing badges of the same category or adds new ones
-/// NO-DOWNGRADE RULE: Only updates if new badge value is higher than existing
-#[test_only]
-fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector<Badge>) {
-    let mut i = 0;
-    let len = vector::length(&new_badges);
-
-    while (i < len) {
-        let new_badge = vector::borrow(&new_badges, i);
-        let (found, existing_idx) = find_badge_by_category(collection, &new_badge.category);
-
-        if (found) {
-            let existing_badge = vector::borrow_mut(&mut collection.badges, existing_idx);
-            if (should_update_badge(new_badge, existing_badge)) {
-                *existing_badge = *new_badge;
-            };
-        } else {
-            vector::push_back(&mut collection.badges, *new_badge);
-        };
-
-        i = i + 1;
-    };
-}
-
-// === View Functions ===
 
 /// Get all badges for a profile
 public fun get_badges(profile: &Profile): vector<Badge> {
@@ -375,7 +342,27 @@ public fun has_badge_category(profile: &Profile, category: String): bool {
     false
 }
 
-// === Test Helper Functions ===
+#[test_only]
+fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector<Badge>) {
+    let mut i = 0;
+    let len = vector::length(&new_badges);
+
+    while (i < len) {
+        let new_badge = vector::borrow(&new_badges, i);
+        let (found, existing_idx) = find_badge_by_category(collection, &new_badge.category);
+
+        if (found) {
+            let existing_badge = vector::borrow_mut(&mut collection.badges, existing_idx);
+            if (should_update_badge(new_badge, existing_badge)) {
+                *existing_badge = *new_badge;
+            };
+        } else {
+            vector::push_back(&mut collection.badges, *new_badge);
+        };
+
+        i = i + 1;
+    };
+}
 
 #[test_only]
 public fun create_test_badge(

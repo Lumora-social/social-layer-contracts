@@ -52,7 +52,9 @@ fun test_unlink_social_account() {
         &mut profile,
         b"twitter".to_string(),
         b"testuser".to_string(),
+        &config,
         &clock,
+        ctx(&mut scenario),
     );
 
     // Unlink social account

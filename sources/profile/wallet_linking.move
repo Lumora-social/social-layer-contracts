@@ -13,7 +13,6 @@ module suins_social_layer::wallet_linking;
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
-use sui::event;
 use suins_social_layer::oracle_utils::{Self, OracleConfig};
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
@@ -25,24 +24,16 @@ const ESenderNotOwner: u64 = 2;
 
 // Attestation validity window: 10 minutes (600,000 milliseconds)
 const ATTESTATION_VALIDITY_MS: u64 = 600000;
-
-// === Events ===
-
-/// Event emitted when a wallet is successfully linked
-public struct WalletLinkedEvent has copy, drop {
-    profile_id: ID,
-    profile_owner: address,
-    chain: String,
-    wallet_address: String,
-    timestamp: u64,
-}
+// Maximum allowed clock skew: 5 seconds (5,000 milliseconds)
+// This prevents accepting attestations with timestamps too far in the future
+const MAX_CLOCK_SKEW_MS: u64 = 5000;
 
 // === Public Functions ===
 
 /// Link a wallet to a profile using backend attestation
 /// Supports ETH, BTC, SOL, and SUI chains
 /// The chain parameter must be one of the allowed wallet keys
-public(package) fun link_chain_wallet(
+public fun link_chain_wallet(
     profile: &mut Profile,
     chain: String,
     wallet_address: String,
@@ -67,6 +58,19 @@ public(package) fun link_chain_wallet(
         clock,
         ctx,
     );
+}
+
+public fun unlink_chain_wallet(
+    profile: &mut Profile,
+    chain: String,
+    wallet_address: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    config::assert_wallet_key_is_allowed(config, &chain);
+
+    profile::remove_wallet_address(profile, chain, wallet_address, config, clock, ctx);
 }
 
 // === Helper Functions ===
@@ -94,12 +98,12 @@ fun link_wallet_internal(
     let oracle_public_key = oracle_utils::get_oracle_public_key(oracle_config);
     oracle_utils::validate_oracle_public_key(&oracle_public_key);
 
-    // 4. Verify timestamp hasn't expired
+    // 4. Verify timestamp is valid (not too far in future, not expired)
     let current_time = clock::timestamp_ms(clock);
-    assert!(
-        current_time >= timestamp && current_time - timestamp <= ATTESTATION_VALIDITY_MS,
-        ETimestampExpired,
-    );
+    // Reject timestamps too far in the future (clock skew protection)
+    assert!(timestamp <= current_time + MAX_CLOCK_SKEW_MS, ETimestampExpired);
+    // Reject expired timestamps (older than validity window)
+    assert!(current_time - timestamp <= ATTESTATION_VALIDITY_MS, ETimestampExpired);
 
     // 5. Construct the message that should have been signed by backend
     let message = construct_wallet_link_attestation_message(
@@ -114,15 +118,6 @@ fun link_wallet_internal(
 
     // 7. Add wallet to profile (uses existing profile::add_wallet_address function)
     profile::add_wallet_address(profile, chain, wallet_address, config, clock, ctx);
-
-    // 8. Emit event
-    event::emit(WalletLinkedEvent {
-        profile_id: object::id(profile),
-        profile_owner: profile::owner(profile),
-        chain,
-        wallet_address,
-        timestamp: current_time,
-    });
 }
 
 /// Constructs the wallet link attestation message

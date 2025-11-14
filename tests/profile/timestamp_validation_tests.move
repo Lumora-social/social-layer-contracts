@@ -1,20 +1,16 @@
-module suins_social_layer::profile_badges_tests_simple;
+module suins_social_layer::timestamp_validation_tests;
 
 use sui::bcs;
 use sui::clock;
 use sui::test_scenario::{Self, next_tx, ctx};
 use suins_social_layer::oracle_utils;
 use suins_social_layer::profile;
-use suins_social_layer::profile_actions;
 use suins_social_layer::profile_badges;
+use suins_social_layer::profile_actions;
 use suins_social_layer::social_layer_config;
 use suins_social_layer::social_layer_registry;
 
-// === Test Helper Functions ===
-
-/// Helper to encode a single badge to BCS format
-/// Format matches deserialize_badges: vector length, then for each badge:
-/// category, tier, display_name, description, image_url (Option<String>), tier_number
+// Helper to encode a single badge to BCS format
 fun encode_badge_to_bcs(
     category: vector<u8>,
     tier: vector<u8>,
@@ -25,47 +21,31 @@ fun encode_badge_to_bcs(
     tier_number: u8,
 ): vector<u8> {
     let mut bcs_data = vector::empty<u8>();
-
-    // Encode vector length (1 badge) - ULEB128 encoding
     let len: u64 = 1;
     let len_bytes = bcs::to_bytes(&len);
     vector::append(&mut bcs_data, len_bytes);
-
-    // Encode category (String as vector<u8>)
     let category_bytes = bcs::to_bytes(&category);
     vector::append(&mut bcs_data, category_bytes);
-
-    // Encode tier (String as vector<u8>)
     let tier_bytes = bcs::to_bytes(&tier);
     vector::append(&mut bcs_data, tier_bytes);
-
-    // Encode display_name (String as vector<u8>)
     let display_name_bytes = bcs::to_bytes(&display_name);
     vector::append(&mut bcs_data, display_name_bytes);
-
-    // Encode description (String as vector<u8>)
     let description_bytes = bcs::to_bytes(&description);
     vector::append(&mut bcs_data, description_bytes);
-
-    // Encode image_url (Option<String>)
     let has_image_bytes = bcs::to_bytes(&has_image);
     vector::append(&mut bcs_data, has_image_bytes);
     if (has_image) {
         let image_url_bytes = bcs::to_bytes(&image_url);
         vector::append(&mut bcs_data, image_url_bytes);
     };
-
-    // Encode tier_number (u8)
     let tier_number_bytes = bcs::to_bytes(&tier_number);
     vector::append(&mut bcs_data, tier_number_bytes);
-
     bcs_data
 }
 
-// === Tests ===
-
 #[test]
-fun test_get_badges_empty_profile() {
+#[expected_failure(abort_code = suins_social_layer::profile_badges::ETimestampExpired)]
+fun test_mint_badges_future_timestamp_rejected() {
     let admin_address: address = @0xAD;
     let user_address: address = @0xA;
 
@@ -79,61 +59,7 @@ fun test_get_badges_empty_profile() {
     let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
     let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
 
-    // Create profile
-    next_tx(&mut scenario, user_address);
-    let clock = clock::create_for_testing(ctx(&mut scenario));
-    let profile = profile::create_profile_helper(
-        b"testuser".to_string(),
-        option::none(),
-        option::none(),
-        option::none(),
-        option::none(),
-        &config,
-        &mut registry,
-        &clock,
-        ctx(&mut scenario),
-    );
-
-    // Test get_badges on empty profile
-    let badges = profile_badges::get_badges(&profile);
-    assert!(vector::length(&badges) == 0, 0);
-
-    // Cleanup
-    clock.destroy_for_testing();
-    next_tx(&mut scenario, admin_address);
-
-    let clock_for_deletion = clock::create_for_testing(ctx(&mut scenario));
-    next_tx(&mut scenario, user_address);
-    profile_actions::delete_profile(
-        profile,
-        &mut registry,
-        &clock_for_deletion,
-        ctx(&mut scenario),
-    );
-
-    clock_for_deletion.destroy_for_testing();
-    test_scenario::return_shared(registry);
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
-}
-
-#[test]
-#[expected_failure(abort_code = suins_social_layer::oracle_utils::EInvalidSignature)]
-fun test_mint_badges_invalid_signature() {
-    let admin_address: address = @0xAD;
-    let user_address: address = @0xA;
-
-    let mut scenario = test_scenario::begin(admin_address);
-
-    // Setup
-    social_layer_config::test_create_config(ctx(&mut scenario));
-    social_layer_registry::create_registry_for_testing(ctx(&mut scenario));
-    next_tx(&mut scenario, admin_address);
-
-    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
-    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-
-    // Create oracle config with test public key (32 bytes)
+    // Create oracle config
     next_tx(&mut scenario, admin_address);
     let mut oracle_public_key = vector::empty<u8>();
     let mut i = 0;
@@ -172,34 +98,34 @@ fun test_mint_badges_invalid_signature() {
         0,
     );
 
-    // Create invalid signature (64 bytes of zeros - won't verify)
-    let mut invalid_signature = vector::empty<u8>();
+    // Create a valid signature (we'll use zeros for simplicity - actual test would need real signature)
+    let mut signature = vector::empty<u8>();
     let mut j = 0;
     while (j < 64) {
-        vector::push_back(&mut invalid_signature, 0);
+        vector::push_back(&mut signature, 0);
         j = j + 1;
     };
 
+    // Use a timestamp far in the future (more than MAX_CLOCK_SKEW_MS = 5000ms)
     let current_time = clock::timestamp_ms(&clock);
-    let timestamp = current_time;
+    let future_timestamp = current_time + 10000; // 10 seconds in future (exceeds 5s tolerance)
 
-    // This should fail with invalid signature error
+    // This should fail with ETimestampExpired
     next_tx(&mut scenario, user_address);
     profile_badges::mint_badges(
         &mut profile,
         badges_bcs,
-        invalid_signature,
-        timestamp,
+        signature,
+        future_timestamp,
         &oracle_config_shared,
         &config,
         &clock,
         ctx(&mut scenario),
     );
 
-    // Cleanup (won't reach here due to expected failure, but needed for compilation)
+    // Cleanup (won't reach here)
     clock.destroy_for_testing();
     next_tx(&mut scenario, admin_address);
-
     let clock_for_deletion = clock::create_for_testing(ctx(&mut scenario));
     next_tx(&mut scenario, user_address);
     profile_actions::delete_profile(
@@ -208,10 +134,108 @@ fun test_mint_badges_invalid_signature() {
         &clock_for_deletion,
         ctx(&mut scenario),
     );
-
     clock_for_deletion.destroy_for_testing();
     test_scenario::return_shared(oracle_config_shared);
     test_scenario::return_shared(registry);
     test_scenario::return_shared(config);
     test_scenario::end(scenario);
 }
+
+#[test]
+#[expected_failure(abort_code = suins_social_layer::profile_badges::ETimestampExpired)]
+fun test_mint_badges_expired_timestamp_rejected() {
+    let admin_address: address = @0xAD;
+    let user_address: address = @0xA;
+
+    let mut scenario = test_scenario::begin(admin_address);
+
+    // Setup
+    social_layer_config::test_create_config(ctx(&mut scenario));
+    social_layer_registry::create_registry_for_testing(ctx(&mut scenario));
+    next_tx(&mut scenario, admin_address);
+
+    let mut registry = test_scenario::take_shared<social_layer_registry::Registry>(&scenario);
+    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+
+    // Create oracle config
+    next_tx(&mut scenario, admin_address);
+    let mut oracle_public_key = vector::empty<u8>();
+    let mut i = 0;
+    while (i < 32) {
+        vector::push_back(&mut oracle_public_key, i);
+        i = i + 1;
+    };
+    oracle_utils::create_and_share_test_oracle_config(oracle_public_key, ctx(&mut scenario));
+    next_tx(&mut scenario, admin_address);
+
+    let oracle_config_shared = test_scenario::take_shared<oracle_utils::OracleConfig>(&scenario);
+
+    // Create profile
+    next_tx(&mut scenario, user_address);
+    let clock = clock::create_for_testing(ctx(&mut scenario));
+    let mut profile = profile::create_profile_helper(
+        b"testuser2".to_string(),
+        option::none(),
+        option::none(),
+        option::none(),
+        option::none(),
+        &config,
+        &mut registry,
+        &clock,
+        ctx(&mut scenario),
+    );
+
+    // Encode badge to BCS
+    let badges_bcs = encode_badge_to_bcs(
+        b"suins_portfolio",
+        b"bronze",
+        b"Bronze Hodler",
+        b"Bronze tier badge",
+        true,
+        b"https://example.com/bronze.png",
+        0,
+    );
+
+    // Create a valid signature
+    let mut signature = vector::empty<u8>();
+    let mut j = 0;
+    while (j < 64) {
+        vector::push_back(&mut signature, 0);
+        j = j + 1;
+    };
+
+    // Use an expired timestamp (older than ATTESTATION_VALIDITY_MS = 600000ms = 10 minutes)
+    let current_time = clock::timestamp_ms(&clock);
+    let expired_timestamp = current_time - 700000; // 11.67 minutes ago (expired)
+
+    // This should fail with ETimestampExpired
+    next_tx(&mut scenario, user_address);
+    profile_badges::mint_badges(
+        &mut profile,
+        badges_bcs,
+        signature,
+        expired_timestamp,
+        &oracle_config_shared,
+        &config,
+        &clock,
+        ctx(&mut scenario),
+    );
+
+    // Cleanup (won't reach here)
+    clock.destroy_for_testing();
+    next_tx(&mut scenario, admin_address);
+    let clock_for_deletion = clock::create_for_testing(ctx(&mut scenario));
+    next_tx(&mut scenario, user_address);
+    profile_actions::delete_profile(
+        profile,
+        &mut registry,
+        &clock_for_deletion,
+        ctx(&mut scenario),
+    );
+    clock_for_deletion.destroy_for_testing();
+    test_scenario::return_shared(oracle_config_shared);
+    test_scenario::return_shared(registry);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
+}
+

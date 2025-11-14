@@ -17,6 +17,8 @@ const EWalletKeyNotAllowed: u64 = 8;
 const EWalletKeyAlreadyExists: u64 = 9;
 const ESocialPlatformNotAllowed: u64 = 10;
 const ESocialPlatformAlreadyExists: u64 = 11;
+const EInvalidMigrationVersion: u64 = 12;
+const EConfigAlreadyAtTargetVersion: u64 = 13;
 
 const PACKAGE_VERSION: u64 = 1;
 
@@ -55,7 +57,7 @@ public fun assert_address_is_config_manager(
     assert!(config.config_manager == tx_context::sender(ctx), EAddressIsNotConfigManager);
 }
 
-public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext) {
+public fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext) {
     assert!(types::is_one_time_witness<SOCIAL_LAYER_CONFIG>(otw), ETypeNotOneTimeWitness);
 
     let config = Config {
@@ -284,6 +286,39 @@ public fun remove_allowed_social_platform(
     };
 
     false
+}
+
+/// Migrates Config from one version to another
+/// Must be called immediately after package upgrade to update the on-chain Config object
+public fun migrate_config(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    target_version: u64,
+    ctx: &mut TxContext,
+) {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+    assert!(target_version > config.version, EConfigAlreadyAtTargetVersion);
+    assert!(target_version <= PACKAGE_VERSION, EInvalidMigrationVersion);
+
+    // Version-specific migration logic
+    // Migrate from version 1 to version 2
+    if (config.version == 1 && target_version == 2) {
+        config.version = 2;
+    } else {
+        // For other version jumps, require step-by-step migration
+        // This ensures all migration logic is executed in order
+        assert!(false, EInvalidMigrationVersion);
+    };
+}
+
+/// Updates Config version to match PACKAGE_VERSION
+/// Convenience function that calls migrate_config with PACKAGE_VERSION
+public fun update_config_to_latest_version(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    ctx: &mut TxContext,
+) {
+    migrate_config(config_manager_cap, config, PACKAGE_VERSION, ctx);
 }
 
 #[test_only]

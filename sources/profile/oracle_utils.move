@@ -6,19 +6,14 @@ use sui::clock::{Self, Clock};
 use sui::ed25519;
 use sui::event;
 
-// === Errors ===
 #[error]
-const EInvalidSignature: u64 = 0;
 const EInvalidMessageFormat: u64 = 1;
 const ESenderNotOwner: u64 = 2;
-
-// === Constants ===
+const EInvalidSignature: u64 = 3;
 
 /// Default public key (32 bytes) for the backend oracle
 const DEFAULT_PUBLIC_KEY: vector<u8> =
     x"7f55f796aed7c4b78376223f0a3a7091a45d9fee9d5ae964ee0ca61b50c97556";
-
-// === Structs ===
 
 /// Backend oracle configuration
 /// Stores the public key used to verify backend signatures
@@ -30,15 +25,11 @@ public struct OracleConfig has key {
     admin: address,
 }
 
-// === Events ===
-
 public struct OraclePublicKeyUpdatedEvent has copy, drop {
     old_key: vector<u8>,
     new_key: vector<u8>,
     timestamp: u64,
 }
-
-// === Initialization ===
 
 /// Initialization function
 fun init(ctx: &mut TxContext) {
@@ -104,7 +95,7 @@ public fun validate_oracle_public_key(public_key: &vector<u8>) {
     assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
 }
 
-// === View Functions ===
+// === Getters ===
 
 /// Get the oracle's public key
 public fun get_oracle_public_key(oracle_config: &OracleConfig): vector<u8> {
@@ -116,8 +107,6 @@ public fun get_oracle_admin(oracle_config: &OracleConfig): address {
     oracle_config.admin
 }
 
-// === Test Helper Functions ===
-
 #[test_only]
 public fun create_test_oracle_config(public_key: vector<u8>, ctx: &mut TxContext): OracleConfig {
     OracleConfig {
@@ -125,4 +114,14 @@ public fun create_test_oracle_config(public_key: vector<u8>, ctx: &mut TxContext
         public_key,
         admin: tx_context::sender(ctx),
     }
+}
+
+#[test_only]
+public fun create_and_share_test_oracle_config(public_key: vector<u8>, ctx: &mut TxContext) {
+    let oracle_config = OracleConfig {
+        id: object::new(ctx),
+        public_key,
+        admin: tx_context::sender(ctx),
+    };
+    transfer::share_object(oracle_config);
 }

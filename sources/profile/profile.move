@@ -454,6 +454,8 @@ public(package) fun remove_wallet_address(
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    config::assert_wallet_key_is_allowed(config, &network);
     assert!(sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyDoesNotExist);
 
     let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
@@ -782,15 +784,27 @@ public(package) fun link_social_account(
     profile: &mut Profile,
     platform: String,
     username: String,
+    config: &Config,
     clock: &Clock,
+    ctx: &TxContext,
 ) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    config::assert_social_platform_is_allowed(config, &platform);
+
     sui::vec_map::insert(&mut profile.social_accounts, platform, username);
     profile.updated_at = clock::timestamp_ms(clock);
 }
 
-public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, clock: &Clock) {
-    if (sui::vec_map::contains(&profile.social_accounts, platform)) {
-        sui::vec_map::remove(&mut profile.social_accounts, platform);
+public(package) fun unlink_social_account(profile: &mut Profile, platform: String, config: &Config, clock: &Clock, ctx: &TxContext) {
+    config::assert_interacting_with_most_up_to_date_package(config);
+    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
+
+    config::assert_social_platform_is_allowed(config, &platform);
+
+    if (sui::vec_map::contains(&profile.social_accounts, &platform)) {
+        sui::vec_map::remove(&mut profile.social_accounts, &platform);
         profile.updated_at = clock::timestamp_ms(clock);
     };
 }

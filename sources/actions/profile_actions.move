@@ -9,6 +9,7 @@ use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::profile_badges;
 use suins_social_layer::social_layer_config::Config;
 use suins_social_layer::social_layer_registry::Registry;
+use suins_social_layer::social_verification;
 use suins_social_layer::wallet_linking;
 
 /// Creates a new profile with basic information
@@ -131,7 +132,12 @@ public fun set_bio(
 }
 
 /// Removes the bio text from a profile
-public fun remove_bio(profile: &mut Profile, config: &Config, clock: &Clock, ctx: &mut TxContext) {
+public fun remove_bio(
+    profile: &mut Profile,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
     profile::remove_bio(
         profile,
         config,
@@ -222,7 +228,12 @@ public fun set_url(
 }
 
 /// Removes the URL from a profile
-public fun remove_url(profile: &mut Profile, config: &Config, clock: &Clock, ctx: &mut TxContext) {
+public fun remove_url(
+    profile: &mut Profile,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
     profile::remove_url(
         profile,
         config,
@@ -258,19 +269,43 @@ public fun link_chain_wallet(
     )
 }
 
-/// Removes a wallet address from a profile
-public fun remove_wallet_address(
+/// Links a social account to a profile with backend attestation
+/// Supported platforms: "twitter", "discord", "telegram", "google"
+public fun link_social_account(
     profile: &mut Profile,
-    network: String,
-    address: String,
+    platform: String,
+    username: String,
+    signature: vector<u8>,
+    timestamp: u64,
+    oracle_config: &OracleConfig,
+    config: &Config,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    social_verification::link_social_account(
+        profile,
+        platform,
+        username,
+        signature,
+        timestamp,
+        oracle_config,
+        config,
+        clock,
+        ctx,
+    )
+}
+
+/// Unlinks a social account from a profile
+public fun unlink_social_account(
+    profile: &mut Profile,
+    platform: String,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::remove_wallet_address(
+    social_verification::unlink_social_account(
         profile,
-        network,
-        address,
+        platform,
         config,
         clock,
         ctx,
@@ -282,7 +317,7 @@ public fun archive_profile(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     profile::archive_profile(
         profile,
@@ -378,6 +413,7 @@ public fun remove_df_from_profile_no_event<K: copy + drop + store, V: store + dr
     );
 }
 
+/// Mint badges on a profile with backend attestation
 public fun mint_badges(
     profile: &mut Profile,
     badges_bcs: vector<u8>,

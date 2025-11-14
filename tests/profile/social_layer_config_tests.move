@@ -1,122 +1,194 @@
-/// Shared utilities for oracle signature verification
-/// Used by profile_badges, social_verification, and wallet_linking modules
-module suins_social_layer::oracle_utils;
+module suins_social_layer::social_layer_config_tests;
 
-use sui::clock::{Self, Clock};
-use sui::ed25519;
-use sui::event;
+use sui::test_scenario::{Self, next_tx, ctx};
+use sui::transfer;
+use suins_social_layer::app;
+use suins_social_layer::social_layer_config;
 
-// === Errors ===
-#[error]
-const EInvalidSignature: u64 = 0;
-const EInvalidMessageFormat: u64 = 1;
-const ESenderNotOwner: u64 = 2;
+#[test]
+fun test_migrate_config_v1_to_v2() {
+    let admin_address: address = @0xAD;
+    let config_manager_address: address = @0xCM;
 
-// === Structs ===
+    let mut scenario = test_scenario::begin(admin_address);
 
-/// Backend oracle configuration
-/// Stores the public key used to verify backend signatures
-public struct OracleConfig has key {
-    id: UID,
-    // Ed25519 public key of the backend oracle (32 bytes)
-    public_key: vector<u8>,
-    // Admin who can update the public key
-    admin: address,
+    // Setup: Create config
+    social_layer_config::test_create_config(ctx(&mut scenario));
+    next_tx(&mut scenario, admin_address);
+
+    let mut config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+
+    // Verify initial version is 1
+    assert!(social_layer_config::version(&config) == 1, 0);
+
+    // Assign config manager
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<suins_social_layer::app::AdminCap>(&scenario);
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        config_manager_address,
+        ctx(&mut scenario),
+    );
+    transfer::public_transfer(admin_cap, admin_address);
+    next_tx(&mut scenario, admin_address);
+
+    // Config manager receives the cap
+    next_tx(&mut scenario, config_manager_address);
+    let config_manager_cap = test_scenario::take_from_sender<social_layer_config::ConfigManagerCap>(&scenario);
+
+    // Migrate from v1 to v2
+    next_tx(&mut scenario, config_manager_address);
+    social_layer_config::migrate_config(
+        &config_manager_cap,
+        &mut config,
+        2,
+        ctx(&mut scenario),
+    );
+
+    // Verify version is now 2
+    assert!(social_layer_config::version(&config) == 2, 1);
+
+    // Cleanup
+    transfer::public_transfer(config_manager_cap, config_manager_address);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
 }
 
-// === Events ===
+#[test]
+#[expected_failure(abort_code = suins_social_layer::social_layer_config::EConfigAlreadyAtTargetVersion)]
+fun test_migrate_config_already_at_version() {
+    let admin_address: address = @0xAD;
+    let config_manager_address: address = @0xCM;
 
-public struct OraclePublicKeyUpdatedEvent has copy, drop {
-    old_key: vector<u8>,
-    new_key: vector<u8>,
-    timestamp: u64,
+    let mut scenario = test_scenario::begin(admin_address);
+
+    // Setup: Create config
+    social_layer_config::test_create_config(ctx(&mut scenario));
+    next_tx(&mut scenario, admin_address);
+
+    let mut config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+
+    // Assign config manager
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<suins_social_layer::app::AdminCap>(&scenario);
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        config_manager_address,
+        ctx(&mut scenario),
+    );
+    transfer::public_transfer(admin_cap, admin_address);
+    next_tx(&mut scenario, admin_address);
+
+    // Config manager receives the cap
+    next_tx(&mut scenario, config_manager_address);
+    let config_manager_cap = test_scenario::take_from_sender<social_layer_config::ConfigManagerCap>(&scenario);
+
+    // Try to migrate to version 1 (already at version 1) - should fail
+    next_tx(&mut scenario, config_manager_address);
+    social_layer_config::migrate_config(
+        &config_manager_cap,
+        &mut config,
+        1,
+        ctx(&mut scenario),
+    );
+
+    // Cleanup (won't reach here)
+    transfer::public_transfer(config_manager_cap, config_manager_address);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
 }
 
-// === Initialization ===
+#[test]
+#[expected_failure(abort_code = suins_social_layer::social_layer_config::EInvalidMigrationVersion)]
+fun test_migrate_config_invalid_target_version() {
+    let admin_address: address = @0xAD;
+    let config_manager_address: address = @0xCM;
 
-/// Initialization function
-fun init(ctx: &mut TxContext) {
-    let oracle_config = OracleConfig {
-        id: object::new(ctx),
-        public_key: vector::empty<u8>(), // To be set by admin
-        admin: tx_context::sender(ctx),
-    };
-    transfer::share_object(oracle_config);
+    let mut scenario = test_scenario::begin(admin_address);
+
+    // Setup: Create config
+    social_layer_config::test_create_config(ctx(&mut scenario));
+    next_tx(&mut scenario, admin_address);
+
+    let mut config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+
+    // Assign config manager
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<suins_social_layer::app::AdminCap>(&scenario);
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        config_manager_address,
+        ctx(&mut scenario),
+    );
+    transfer::public_transfer(admin_cap, admin_address);
+    next_tx(&mut scenario, admin_address);
+
+    // Config manager receives the cap
+    next_tx(&mut scenario, config_manager_address);
+    let config_manager_cap = test_scenario::take_from_sender<social_layer_config::ConfigManagerCap>(&scenario);
+
+    // Try to migrate to version 10 (greater than PACKAGE_VERSION = 1) - should fail
+    next_tx(&mut scenario, config_manager_address);
+    social_layer_config::migrate_config(
+        &config_manager_cap,
+        &mut config,
+        10,
+        ctx(&mut scenario),
+    );
+
+    // Cleanup (won't reach here)
+    transfer::public_transfer(config_manager_cap, config_manager_address);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
 }
 
-// === Admin Functions ===
+#[test]
+fun test_update_config_to_latest_version() {
+    let admin_address: address = @0xAD;
+    let config_manager_address: address = @0xCM;
 
-/// Updates the backend oracle's public key
-/// Only the admin can call this
-public fun update_oracle_public_key(
-    oracle_config: &mut OracleConfig,
-    new_public_key: vector<u8>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
-    assert!(vector::length(&new_public_key) == 32, EInvalidMessageFormat);
+    let mut scenario = test_scenario::begin(admin_address);
 
-    let old_key = oracle_config.public_key;
-    oracle_config.public_key = new_public_key;
+    // Setup: Create config
+    social_layer_config::test_create_config(ctx(&mut scenario));
+    next_tx(&mut scenario, admin_address);
 
-    event::emit(OraclePublicKeyUpdatedEvent {
-        old_key,
-        new_key: new_public_key,
-        timestamp: clock::timestamp_ms(clock),
-    });
+    let mut config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+
+    // Assign config manager
+    next_tx(&mut scenario, admin_address);
+    let admin_cap = test_scenario::take_from_sender<suins_social_layer::app::AdminCap>(&scenario);
+    social_layer_config::assign_config_manager(
+        &admin_cap,
+        &mut config,
+        config_manager_address,
+        ctx(&mut scenario),
+    );
+    transfer::public_transfer(admin_cap, admin_address);
+    next_tx(&mut scenario, admin_address);
+
+    // Config manager receives the cap
+    next_tx(&mut scenario, config_manager_address);
+    let config_manager_cap = test_scenario::take_from_sender<social_layer_config::ConfigManagerCap>(&scenario);
+
+    // Update to latest version (currently PACKAGE_VERSION = 1, so no change)
+    // This test verifies the function works, even if version doesn't change
+    next_tx(&mut scenario, config_manager_address);
+    social_layer_config::update_config_to_latest_version(
+        &config_manager_cap,
+        &mut config,
+        ctx(&mut scenario),
+    );
+
+    // Verify version is still 1 (PACKAGE_VERSION)
+    assert!(social_layer_config::version(&config) == 1, 0);
+
+    // Cleanup
+    transfer::public_transfer(config_manager_cap, config_manager_address);
+    test_scenario::return_shared(config);
+    test_scenario::end(scenario);
 }
 
-/// Transfers admin rights to a new address
-public fun transfer_admin(
-    oracle_config: &mut OracleConfig,
-    new_admin: address,
-    ctx: &mut TxContext,
-) {
-    assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
-    oracle_config.admin = new_admin;
-}
-
-// === Public Functions ===
-
-/// Verifies backend oracle Ed25519 signature
-/// Validates public key (32 bytes) and signature (64 bytes) lengths
-/// Then verifies the signature matches the message
-public fun verify_oracle_signature(
-    message: &vector<u8>,
-    public_key: &vector<u8>,
-    signature: &vector<u8>,
-) {
-    assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
-    assert!(vector::length(signature) == 64, EInvalidMessageFormat);
-    let is_valid = ed25519::ed25519_verify(signature, public_key, message);
-    assert!(is_valid, EInvalidSignature);
-}
-
-/// Validates that oracle public key is properly set (32 bytes)
-public fun validate_oracle_public_key(public_key: &vector<u8>) {
-    assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
-}
-
-// === View Functions ===
-
-/// Get the oracle's public key
-public fun get_oracle_public_key(oracle_config: &OracleConfig): vector<u8> {
-    oracle_config.public_key
-}
-
-/// Get the oracle admin
-public fun get_oracle_admin(oracle_config: &OracleConfig): address {
-    oracle_config.admin
-}
-
-// === Test Helper Functions ===
-
-#[test_only]
-public fun create_test_oracle_config(public_key: vector<u8>, ctx: &mut TxContext): OracleConfig {
-    OracleConfig {
-        id: object::new(ctx),
-        public_key,
-        admin: tx_context::sender(ctx),
-    }
-}
