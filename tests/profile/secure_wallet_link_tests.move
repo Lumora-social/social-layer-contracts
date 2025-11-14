@@ -4,7 +4,6 @@ use sui::clock;
 use sui::test_scenario::{Self, next_tx, ctx};
 use suins_social_layer::profile;
 use suins_social_layer::profile_actions;
-use suins_social_layer::secure_wallet_link;
 use suins_social_layer::social_layer_config;
 use suins_social_layer::social_layer_registry;
 
@@ -42,9 +41,9 @@ fun test_unlink_wallet() {
         ctx(&mut scenario),
     );
 
-    // Add wallet address (using an allowed wallet key - ETH)
+    // Add wallet address (using package function)
     next_tx(&mut scenario, user_address);
-    profile_actions::add_wallet_address(
+    profile::add_wallet_address(
         &mut profile,
         b"ETH".to_string(),
         b"0x1234567890123456789012345678901234567890".to_string(),
@@ -53,9 +52,9 @@ fun test_unlink_wallet() {
         ctx(&mut scenario),
     );
 
-    // Unlink wallet
+    // Remove wallet address (using package function)
     next_tx(&mut scenario, user_address);
-    secure_wallet_link::unlink_wallet(
+    profile::remove_wallet_address(
         &mut profile,
         b"ETH".to_string(),
         b"0x1234567890123456789012345678901234567890".to_string(),
@@ -71,7 +70,7 @@ fun test_unlink_wallet() {
     // Cleanup
     clock.destroy_for_testing();
     next_tx(&mut scenario, admin_address);
-    
+
     let clock_for_deletion = clock::create_for_testing(ctx(&mut scenario));
     next_tx(&mut scenario, user_address);
     profile_actions::delete_profile(
@@ -86,4 +85,3 @@ fun test_unlink_wallet() {
     test_scenario::return_shared(config);
     test_scenario::end(scenario);
 }
-

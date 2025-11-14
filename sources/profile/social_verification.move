@@ -13,8 +13,7 @@ module suins_social_layer::social_verification;
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
-use sui::event;
-use suins_social_layer::oracle_utils;
+use suins_social_layer::oracle_utils::{Self, OracleConfig};
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
 
@@ -22,162 +21,32 @@ use suins_social_layer::social_layer_config::{Self as config, Config};
 #[error]
 const ETimestampExpired: u64 = 0;
 const ESenderNotOwner: u64 = 1;
-const EInvalidMessageFormat: u64 = 2;
 
 // Attestation validity window: 10 minutes (600,000 milliseconds)
 const ATTESTATION_VALIDITY_MS: u64 = 600000;
 
-// === Structs ===
-
-/// Backend oracle configuration
-/// Stores the public key used to verify backend signatures
-public struct OracleConfig has key {
-    id: UID,
-    // Ed25519 public key of the backend oracle (32 bytes)
-    public_key: vector<u8>,
-    // Admin who can update the public key
-    admin: address,
-}
-
-/// Initialization function
-fun init(ctx: &mut TxContext) {
-    let oracle_config = OracleConfig {
-        id: object::new(ctx),
-        public_key: vector::empty<u8>(), // To be set by admin
-        admin: tx_context::sender(ctx),
-    };
-    transfer::share_object(oracle_config);
-}
-
-// === Events ===
-
-public struct OraclePublicKeyUpdatedEvent has copy, drop {
-    old_key: vector<u8>,
-    new_key: vector<u8>,
-    timestamp: u64,
-}
-
-// === Admin Functions ===
-
-/// Updates the backend oracle's public key
-/// Only the admin can call this
-public fun update_oracle_public_key(
-    oracle_config: &mut OracleConfig,
-    new_public_key: vector<u8>,
-    ctx: &mut TxContext,
-) {
-    assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
-    assert!(vector::length(&new_public_key) == 32, EInvalidMessageFormat);
-
-    let old_key = oracle_config.public_key;
-    oracle_config.public_key = new_public_key;
-
-    event::emit(OraclePublicKeyUpdatedEvent {
-        old_key,
-        new_key: new_public_key,
-        timestamp: 0, // Clock not needed here
-    });
-}
-
-/// Transfers admin rights to a new address
-public fun transfer_admin(
-    oracle_config: &mut OracleConfig,
-    new_admin: address,
-    ctx: &mut TxContext,
-) {
-    assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
-    oracle_config.admin = new_admin;
-}
-
 // === Public Functions ===
 
-/// Links a Twitter account to a profile with backend attestation
-public fun link_twitter_account(
+/// Unified function to link any social account to a profile with backend attestation
+/// Validates that the platform is in the allowed list from config
+public(package) fun link_social_account(
     profile: &mut Profile,
-    twitter_username: String,
+    platform: String,
+    username: String,
     signature: vector<u8>,
     timestamp: u64,
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
-    link_social_account_internal(
-        profile,
-        b"twitter".to_string(),
-        twitter_username,
-        signature,
-        timestamp,
-        oracle_config,
-        config,
-        clock,
-        ctx,
-    );
-}
+    // Validate platform is allowed
+    config::assert_social_platform_is_allowed(config, &platform);
 
-/// Links a Discord account to a profile with backend attestation
-public fun link_discord_account(
-    profile: &mut Profile,
-    discord_username: String,
-    signature: vector<u8>,
-    timestamp: u64,
-    oracle_config: &OracleConfig,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
     link_social_account_internal(
         profile,
-        b"discord".to_string(),
-        discord_username,
-        signature,
-        timestamp,
-        oracle_config,
-        config,
-        clock,
-        ctx,
-    );
-}
-
-/// Links a Telegram account to a profile with backend attestation
-public fun link_telegram_account(
-    profile: &mut Profile,
-    telegram_username: String,
-    signature: vector<u8>,
-    timestamp: u64,
-    oracle_config: &OracleConfig,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    link_social_account_internal(
-        profile,
-        b"telegram".to_string(),
-        telegram_username,
-        signature,
-        timestamp,
-        oracle_config,
-        config,
-        clock,
-        ctx,
-    );
-}
-
-/// Links a Google account to a profile with backend attestation
-public fun link_google_account(
-    profile: &mut Profile,
-    google_email: String,
-    signature: vector<u8>,
-    timestamp: u64,
-    oracle_config: &OracleConfig,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    link_social_account_internal(
-        profile,
-        b"google".to_string(),
-        google_email,
+        platform,
+        username,
         signature,
         timestamp,
         oracle_config,
@@ -203,7 +72,8 @@ fun link_social_account_internal(
 
     config::assert_interacting_with_most_up_to_date_package(config);
 
-    oracle_utils::validate_oracle_public_key(&oracle_config.public_key);
+    let oracle_public_key = oracle_utils::get_oracle_public_key(oracle_config);
+    oracle_utils::validate_oracle_public_key(&oracle_public_key);
 
     let current_time = clock::timestamp_ms(clock);
     assert!(
@@ -220,7 +90,7 @@ fun link_social_account_internal(
 
     oracle_utils::verify_oracle_signature(
         &message,
-        &oracle_config.public_key,
+        &oracle_public_key,
         &signature,
     );
 
@@ -233,7 +103,7 @@ public fun unlink_social_account(
     platform: String,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
     config::assert_interacting_with_most_up_to_date_package(config);
@@ -274,27 +144,4 @@ fun construct_attestation_message(
     vector::append(&mut message, timestamp_bytes);
 
     message
-}
-
-// === View Functions ===
-
-/// Get the oracle's public key
-public fun get_oracle_public_key(oracle_config: &OracleConfig): vector<u8> {
-    oracle_config.public_key
-}
-
-/// Get the oracle admin
-public fun get_oracle_admin(oracle_config: &OracleConfig): address {
-    oracle_config.admin
-}
-
-// === Test Helper Functions ===
-
-#[test_only]
-public fun create_test_oracle_config(public_key: vector<u8>, ctx: &mut TxContext): OracleConfig {
-    OracleConfig {
-        id: object::new(ctx),
-        public_key,
-        admin: tx_context::sender(ctx),
-    }
 }

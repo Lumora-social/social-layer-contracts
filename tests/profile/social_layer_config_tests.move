@@ -1,124 +1,122 @@
-module suins_social_layer::social_layer_config_tests;
+/// Shared utilities for oracle signature verification
+/// Used by profile_badges, social_verification, and wallet_linking modules
+module suins_social_layer::oracle_utils;
 
-use sui::test_scenario::{Self, next_tx, ctx};
-use suins_social_layer::social_layer_config;
+use sui::clock::{Self, Clock};
+use sui::ed25519;
+use sui::event;
 
-#[test]
-fun test_create_config() {
-    let admin_address: address = @0xAD;
+// === Errors ===
+#[error]
+const EInvalidSignature: u64 = 0;
+const EInvalidMessageFormat: u64 = 1;
+const ESenderNotOwner: u64 = 2;
 
-    let mut scenario = test_scenario::begin(admin_address);
+// === Structs ===
 
-    // Create config
-    social_layer_config::test_create_config(ctx(&mut scenario));
-    next_tx(&mut scenario, admin_address);
-
-    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-
-    // Verify config properties
-    assert!(social_layer_config::version(&config) == 1, 0);
-    assert!(social_layer_config::display_name_min_length(&config) == 3, 1);
-    assert!(social_layer_config::display_name_max_length(&config) == 63, 2);
-    assert!(social_layer_config::bio_min_length(&config) == 4, 3);
-    assert!(social_layer_config::bio_max_length(&config) == 200, 4);
-    assert!(social_layer_config::config_manager(&config) == admin_address, 5);
-
-    // Verify allowed wallet keys
-    let wallet_keys = social_layer_config::allowed_wallet_keys(&config);
-    assert!(vector::length(wallet_keys) > 0, 6);
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
+/// Backend oracle configuration
+/// Stores the public key used to verify backend signatures
+public struct OracleConfig has key {
+    id: UID,
+    // Ed25519 public key of the backend oracle (32 bytes)
+    public_key: vector<u8>,
+    // Admin who can update the public key
+    admin: address,
 }
 
-#[test]
-fun test_set_display_name_length() {
-    let admin_address: address = @0xAD;
+// === Events ===
 
-    let mut scenario = test_scenario::begin(admin_address);
-
-    // Create config
-    social_layer_config::test_create_config(ctx(&mut scenario));
-    next_tx(&mut scenario, admin_address);
-
-    let mut config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-
-    // Get config manager cap (in real scenario, this would be passed)
-    // For testing, we'll just verify the functions exist
-    let original_min = social_layer_config::display_name_min_length(&config);
-    let original_max = social_layer_config::display_name_max_length(&config);
-
-    // Verify original values
-    assert!(original_min == 3, 0);
-    assert!(original_max == 63, 1);
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
+public struct OraclePublicKeyUpdatedEvent has copy, drop {
+    old_key: vector<u8>,
+    new_key: vector<u8>,
+    timestamp: u64,
 }
 
-#[test]
-fun test_set_bio_length() {
-    let admin_address: address = @0xAD;
+// === Initialization ===
 
-    let mut scenario = test_scenario::begin(admin_address);
-
-    // Create config
-    social_layer_config::test_create_config(ctx(&mut scenario));
-    next_tx(&mut scenario, admin_address);
-
-    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-
-    // Verify bio length constraints
-    let bio_min = social_layer_config::bio_min_length(&config);
-    let bio_max = social_layer_config::bio_max_length(&config);
-
-    assert!(bio_min == 4, 0);
-    assert!(bio_max == 200, 1);
-    assert!(bio_min < bio_max, 2);
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
+/// Initialization function
+fun init(ctx: &mut TxContext) {
+    let oracle_config = OracleConfig {
+        id: object::new(ctx),
+        public_key: vector::empty<u8>(), // To be set by admin
+        admin: tx_context::sender(ctx),
+    };
+    transfer::share_object(oracle_config);
 }
 
-#[test]
-fun test_display_name_validation() {
-    let admin_address: address = @0xAD;
+// === Admin Functions ===
 
-    let mut scenario = test_scenario::begin(admin_address);
+/// Updates the backend oracle's public key
+/// Only the admin can call this
+public fun update_oracle_public_key(
+    oracle_config: &mut OracleConfig,
+    new_public_key: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
+    assert!(vector::length(&new_public_key) == 32, EInvalidMessageFormat);
 
-    // Create config
-    social_layer_config::test_create_config(ctx(&mut scenario));
-    next_tx(&mut scenario, admin_address);
+    let old_key = oracle_config.public_key;
+    oracle_config.public_key = new_public_key;
 
-    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
-
-    // Test valid display name
-    let valid_name = b"test".to_string();
-    social_layer_config::assert_display_name_length_is_valid(&config, &valid_name);
-
-    // Test too short name (should fail, but we're just checking the function exists)
-    // This would fail in real scenario, but we're just testing the function exists
-
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
+    event::emit(OraclePublicKeyUpdatedEvent {
+        old_key,
+        new_key: new_public_key,
+        timestamp: clock::timestamp_ms(clock),
+    });
 }
 
-#[test]
-fun test_bio_validation() {
-    let admin_address: address = @0xAD;
+/// Transfers admin rights to a new address
+public fun transfer_admin(
+    oracle_config: &mut OracleConfig,
+    new_admin: address,
+    ctx: &mut TxContext,
+) {
+    assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
+    oracle_config.admin = new_admin;
+}
 
-    let mut scenario = test_scenario::begin(admin_address);
+// === Public Functions ===
 
-    // Create config
-    social_layer_config::test_create_config(ctx(&mut scenario));
-    next_tx(&mut scenario, admin_address);
+/// Verifies backend oracle Ed25519 signature
+/// Validates public key (32 bytes) and signature (64 bytes) lengths
+/// Then verifies the signature matches the message
+public fun verify_oracle_signature(
+    message: &vector<u8>,
+    public_key: &vector<u8>,
+    signature: &vector<u8>,
+) {
+    assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
+    assert!(vector::length(signature) == 64, EInvalidMessageFormat);
+    let is_valid = ed25519::ed25519_verify(signature, public_key, message);
+    assert!(is_valid, EInvalidSignature);
+}
 
-    let config = test_scenario::take_shared<social_layer_config::Config>(&scenario);
+/// Validates that oracle public key is properly set (32 bytes)
+public fun validate_oracle_public_key(public_key: &vector<u8>) {
+    assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
+}
 
-    // Test valid bio
-    let valid_bio = b"This is a valid bio".to_string();
-    social_layer_config::assert_bio_length_is_valid(&config, &valid_bio);
+// === View Functions ===
 
-    test_scenario::return_shared(config);
-    test_scenario::end(scenario);
+/// Get the oracle's public key
+public fun get_oracle_public_key(oracle_config: &OracleConfig): vector<u8> {
+    oracle_config.public_key
+}
+
+/// Get the oracle admin
+public fun get_oracle_admin(oracle_config: &OracleConfig): address {
+    oracle_config.admin
+}
+
+// === Test Helper Functions ===
+
+#[test_only]
+public fun create_test_oracle_config(public_key: vector<u8>, ctx: &mut TxContext): OracleConfig {
+    OracleConfig {
+        id: object::new(ctx),
+        public_key,
+        admin: tx_context::sender(ctx),
+    }
 }

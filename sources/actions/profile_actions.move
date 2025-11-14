@@ -4,9 +4,12 @@ use std::string::String;
 use sui::clock::Clock;
 use suins::suins::SuiNS;
 use suins::suins_registration::SuinsRegistration;
+use suins_social_layer::oracle_utils::OracleConfig;
 use suins_social_layer::profile::{Self, Profile};
+use suins_social_layer::profile_badges;
 use suins_social_layer::social_layer_config::Config;
 use suins_social_layer::social_layer_registry::Registry;
+use suins_social_layer::wallet_linking;
 
 /// Creates a new profile with basic information
 #[allow(lint(self_transfer))]
@@ -228,19 +231,27 @@ public fun remove_url(profile: &mut Profile, config: &Config, clock: &Clock, ctx
     )
 }
 
-/// Adds a wallet address to a profile
-public fun add_wallet_address(
+/// Links a wallet to a profile using secure backend attestation
+/// User must prove ownership by signing a message with their wallet
+/// Supported chains: "ETH", "BTC", "SOL", "SUI"
+public fun link_chain_wallet(
     profile: &mut Profile,
-    network: String,
-    address: String,
+    chain: String,
+    wallet_address: String,
+    signature: vector<u8>,
+    timestamp: u64,
+    oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    profile::add_wallet_address(
+    wallet_linking::link_chain_wallet(
         profile,
-        network,
-        address,
+        chain,
+        wallet_address,
+        signature,
+        timestamp,
+        oracle_config,
         config,
         clock,
         ctx,
@@ -365,6 +376,28 @@ public fun remove_df_from_profile_no_event<K: copy + drop + store, V: store + dr
         df_key,
         clock,
     );
+}
+
+public fun mint_badges(
+    profile: &mut Profile,
+    badges_bcs: vector<u8>,
+    signature: vector<u8>,
+    timestamp: u64,
+    oracle_config: &OracleConfig,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    profile_badges::mint_badges(
+        profile,
+        badges_bcs,
+        signature,
+        timestamp,
+        oracle_config,
+        config,
+        clock,
+        ctx,
+    )
 }
 
 /// Follows a user by address

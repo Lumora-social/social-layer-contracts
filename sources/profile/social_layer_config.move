@@ -15,6 +15,8 @@ const EAddressIsNotConfigManager: u64 = 6;
 const EDisplayNameInvalidCharacter: u64 = 7;
 const EWalletKeyNotAllowed: u64 = 8;
 const EWalletKeyAlreadyExists: u64 = 9;
+const ESocialPlatformNotAllowed: u64 = 10;
+const ESocialPlatformAlreadyExists: u64 = 11;
 
 const PACKAGE_VERSION: u64 = 1;
 
@@ -28,6 +30,7 @@ public struct Config has key {
     bio_min_length: u64,
     bio_max_length: u64,
     allowed_wallet_keys: vector<String>,
+    allowed_social_platforms: vector<String>,
     config_manager: address,
 }
 
@@ -63,6 +66,7 @@ public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext
         bio_min_length: social_layer_constants::bio_min_length(),
         bio_max_length: social_layer_constants::bio_max_length(),
         allowed_wallet_keys: social_layer_constants::allowed_wallet_keys(),
+        allowed_social_platforms: social_layer_constants::allowed_social_platforms(),
         config_manager: tx_context::sender(ctx),
     };
 
@@ -165,6 +169,13 @@ public fun assert_wallet_key_is_allowed(config: &Config, wallet_key: &String) {
     assert!(vector::contains(&config.allowed_wallet_keys, wallet_key), EWalletKeyNotAllowed);
 }
 
+public fun assert_social_platform_is_allowed(config: &Config, platform: &String) {
+    assert!(
+        vector::contains(&config.allowed_social_platforms, platform),
+        ESocialPlatformNotAllowed,
+    );
+}
+
 // Getters
 public fun version(config: &Config): u64 { config.version }
 
@@ -179,6 +190,10 @@ public fun bio_max_length(config: &Config): u64 { config.bio_max_length }
 public fun config_manager(config: &Config): address { config.config_manager }
 
 public fun allowed_wallet_keys(config: &Config): &vector<String> { &config.allowed_wallet_keys }
+
+public fun allowed_social_platforms(config: &Config): &vector<String> {
+    &config.allowed_social_platforms
+}
 
 public fun set_allowed_wallet_keys(
     config_manager_cap: &ConfigManagerCap,
@@ -224,6 +239,53 @@ public fun remove_allowed_wallet_key(
     false
 }
 
+public fun set_allowed_social_platforms(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    allowed_social_platforms: vector<String>,
+    ctx: &mut TxContext,
+) {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+    config.allowed_social_platforms = allowed_social_platforms;
+}
+
+public fun add_allowed_social_platform(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    platform: String,
+    ctx: &mut TxContext,
+) {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+    assert!(
+        !vector::contains(&config.allowed_social_platforms, &platform),
+        ESocialPlatformAlreadyExists,
+    );
+    vector::push_back(&mut config.allowed_social_platforms, platform);
+}
+
+public fun remove_allowed_social_platform(
+    config_manager_cap: &ConfigManagerCap,
+    config: &mut Config,
+    platform: String,
+    ctx: &mut TxContext,
+): bool {
+    assert_address_is_config_manager(config_manager_cap, config, ctx);
+
+    let platforms = &mut config.allowed_social_platforms;
+    let len = vector::length(platforms);
+    let mut index = 0;
+
+    while (index < len) {
+        if (*vector::borrow(platforms, index) == platform) {
+            vector::swap_remove(platforms, index);
+            return true
+        };
+        index = index + 1;
+    };
+
+    false
+}
+
 #[test_only]
 public fun test_create_config(ctx: &mut TxContext) {
     let config = Config {
@@ -234,6 +296,7 @@ public fun test_create_config(ctx: &mut TxContext) {
         bio_min_length: social_layer_constants::bio_min_length(),
         bio_max_length: social_layer_constants::bio_max_length(),
         allowed_wallet_keys: social_layer_constants::allowed_wallet_keys(),
+        allowed_social_platforms: social_layer_constants::allowed_social_platforms(),
         config_manager: tx_context::sender(ctx),
     };
     transfer::share_object(config)

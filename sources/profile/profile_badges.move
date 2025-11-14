@@ -19,10 +19,9 @@ use sui::bcs;
 use sui::clock::{Self, Clock};
 use sui::dynamic_field as df;
 use sui::event;
-use suins_social_layer::oracle_utils;
+use suins_social_layer::oracle_utils::{Self, OracleConfig};
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
-use suins_social_layer::social_verification::OracleConfig;
 
 // === Errors ===
 #[error]
@@ -105,9 +104,7 @@ public fun mint_badges(
     config::assert_interacting_with_most_up_to_date_package(config);
 
     // 3. Verify oracle public key is set
-    let oracle_public_key = suins_social_layer::social_verification::get_oracle_public_key(
-        oracle_config,
-    );
+    let oracle_public_key = oracle_utils::get_oracle_public_key(oracle_config);
     oracle_utils::validate_oracle_public_key(&oracle_public_key);
 
     // 4. Verify timestamp hasn't expired
