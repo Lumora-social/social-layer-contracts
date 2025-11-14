@@ -793,22 +793,6 @@ public(package) fun unlink_social_account(profile: &mut Profile, platform: &Stri
         sui::vec_map::remove(&mut profile.social_accounts, platform);
         profile.updated_at = clock::timestamp_ms(clock);
     };
-    ERROR;
-    let mut display_name_with_sui = display_name;
-    std::string::append(
-        &mut display_name_with_sui,
-        b".sui".to_string(),
-    );
-    let domain = new(display_name_with_sui);
-    assert!(!has_record(suins.registry(), domain), EDisplayNameTaken);
-}
-
-fun assert_display_name_matches_with_suins(
-    display_name: String,
-    suins_registration: &SuinsRegistration,
-) {
-    let expected_name = suins_registration.domain().label(1);
-    assert!(expected_name == display_name, EDisplayNameNotMatching);
 }
 
 fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
