@@ -2,17 +2,17 @@
 ///
 /// Security Model:
 /// 1. User signs a message with Wallet B (wallet to be linked)
-/// 2. Message format: profile_id || wallet_B_address || timestamp || nonce
+/// 2. Message format: profile_id || wallet_B_address || timestamp
 /// 3. Wallet A (profile owner) calls link_sui_wallet with the signature
 /// 4. On-chain verification ensures Wallet B's owner authorized the link
-/// 5. Prevents replay attacks and unauthorized linking
+/// 5. Timestamp expiration (5 minutes) and profile duplicate check prevent replay attacks
 module suins_social_layer::secure_wallet_link;
 
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
-use sui::ed25519;
 use sui::ecdsa_k1;
+use sui::ed25519;
 use sui::event;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
@@ -22,45 +22,12 @@ use suins_social_layer::social_layer_config::{Self as config, Config};
 const EInvalidSignature: u64 = 0;
 const ETimestampExpired: u64 = 1;
 const ESenderNotOwner: u64 = 2;
-const ENonceAlreadyUsed: u64 = 3;
-const EInvalidMessageFormat: u64 = 4;
+const EInvalidMessageFormat: u64 = 3;
 
-// Signature validity window: 5 minutes (300,000 milliseconds)
-const SIGNATURE_VALIDITY_MS: u64 = 300000;
-
-// === Structs ===
-
-/// Stores used nonces to prevent replay attacks
-public struct NonceRegistry has key {
-    id: UID,
-    // Map of nonce => timestamp when used
-    used_nonces: sui::table::Table<vector<u8>, u64>,
-}
-
-/// Initialization function
-fun init(ctx: &mut TxContext) {
-    let registry = NonceRegistry {
-        id: object::new(ctx),
-        used_nonces: sui::table::new(ctx),
-    };
-    transfer::share_object(registry);
-}
+// Signature validity window: 10 minutes
+const SIGNATURE_VALIDITY_MS: u64 = 600000;
 
 // === Events ===
-
-public struct SuiWalletLinkedEvent has copy, drop {
-    profile_id: ID,
-    profile_owner: address,
-    linked_wallet: address,
-    timestamp: u64,
-}
-
-public struct SuiWalletUnlinkedEvent has copy, drop {
-    profile_id: ID,
-    profile_owner: address,
-    unlinked_wallet: address,
-    timestamp: u64,
-}
 
 public struct MultiChainWalletLinkedEvent has copy, drop {
     profile_id: ID,
@@ -80,98 +47,6 @@ public struct MultiChainWalletUnlinkedEvent has copy, drop {
 
 // === Public Functions ===
 
-/// Links a Sui wallet to a profile with cryptographic proof
-///
-/// The signed message must be: profile_id || wallet_to_link || timestamp || nonce
-/// where || represents concatenation
-public fun link_sui_wallet(
-    profile: &mut Profile,
-    wallet_to_link: address,
-    public_key: vector<u8>,
-    signature: vector<u8>,
-    timestamp: u64,
-    nonce: vector<u8>,
-    nonce_registry: &mut NonceRegistry,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    // 1. Verify sender is profile owner
-    assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
-
-    // 2. Verify config is up to date
-    config::assert_interacting_with_most_up_to_date_package(config);
-
-    // 3. Verify timestamp hasn't expired
-    let current_time = clock::timestamp_ms(clock);
-    assert!(current_time - timestamp <= SIGNATURE_VALIDITY_MS, ETimestampExpired);
-
-    // 4. Verify nonce hasn't been used before
-    assert!(!sui::table::contains(&nonce_registry.used_nonces, nonce), ENonceAlreadyUsed);
-
-    // 5. Construct the message that should have been signed
-    let message = construct_link_message(
-        object::id(profile),
-        wallet_to_link,
-        timestamp,
-        &nonce,
-    );
-
-    // 6. Verify the signature
-    verify_ed25519_signature(&message, &public_key, &signature);
-
-    // 7. Mark nonce as used
-    sui::table::add(&mut nonce_registry.used_nonces, nonce, current_time);
-
-    // 8. Add wallet to profile
-    // Generate unique key for this Sui wallet (sui, sui_2, sui_3, etc.)
-    let wallet_address_str = sui::address::to_string(wallet_to_link);
-    let wallet_addresses = profile::wallet_addresses(profile);
-
-    let mut wallet_key = b"sui".to_string();
-    let mut counter = 2u64; // Start from 2 for additional wallets
-
-    // Find next available key
-    while (sui::vec_map::contains(&wallet_addresses, &wallet_key)) {
-        wallet_key = b"sui_".to_string();
-        let counter_str = counter.to_string();
-        wallet_key.append(counter_str);
-        counter = counter + 1;
-    };
-
-    profile::add_wallet_address(profile, wallet_key, wallet_address_str, config, clock, ctx);
-
-    // 9. Emit event
-    event::emit(SuiWalletLinkedEvent {
-        profile_id: object::id(profile),
-        profile_owner: profile::owner(profile),
-        linked_wallet: wallet_to_link,
-        timestamp: current_time,
-    });
-}
-
-/// Unlinks a Sui wallet from a profile
-public fun unlink_sui_wallet(
-    profile: &mut Profile,
-    wallet_key: String,
-    wallet_address: String,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
-    config::assert_interacting_with_most_up_to_date_package(config);
-
-    profile::remove_wallet_address(profile, wallet_key, wallet_address, config, clock, ctx);
-
-    event::emit(SuiWalletUnlinkedEvent {
-        profile_id: object::id(profile),
-        profile_owner: profile::owner(profile),
-        unlinked_wallet: @0x0, // We don't have the address here
-        timestamp: clock::timestamp_ms(clock),
-    });
-}
-
 /// Links an Ethereum/Bitcoin wallet using ECDSA secp256k1 signature
 public fun link_evm_wallet(
     profile: &mut Profile,
@@ -180,8 +55,6 @@ public fun link_evm_wallet(
     public_key: vector<u8>, // 33-byte compressed or 65-byte uncompressed secp256k1 public key
     signature: vector<u8>, // 65-byte ECDSA signature (r || s || v)
     timestamp: u64,
-    nonce: vector<u8>,
-    nonce_registry: &mut NonceRegistry,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
@@ -194,30 +67,26 @@ public fun link_evm_wallet(
 
     // 3. Verify timestamp hasn't expired
     let current_time = clock::timestamp_ms(clock);
-    assert!(current_time - timestamp <= SIGNATURE_VALIDITY_MS, ETimestampExpired);
+    assert!(
+        current_time >= timestamp && current_time - timestamp <= SIGNATURE_VALIDITY_MS,
+        ETimestampExpired,
+    );
 
-    // 4. Verify nonce hasn't been used before
-    assert!(!sui::table::contains(&nonce_registry.used_nonces, nonce), ENonceAlreadyUsed);
-
-    // 5. Construct the message that should have been signed
+    // 4. Construct the message that should have been signed
     let message = construct_multichain_link_message(
         object::id(profile),
         chain,
         wallet_address,
         timestamp,
-        &nonce,
     );
 
-    // 6. Verify the ECDSA secp256k1 signature
+    // 5. Verify the ECDSA secp256k1 signature
     verify_ecdsa_k1_signature(&message, &public_key, &signature);
 
-    // 7. Mark nonce as used
-    sui::table::add(&mut nonce_registry.used_nonces, nonce, current_time);
-
-    // 8. Add wallet to profile
+    // 6. Add wallet to profile
     profile::add_wallet_address(profile, chain, wallet_address, config, clock, ctx);
 
-    // 9. Emit event
+    // 7. Emit event
     event::emit(MultiChainWalletLinkedEvent {
         profile_id: object::id(profile),
         profile_owner: profile::owner(profile),
@@ -234,8 +103,6 @@ public fun link_solana_wallet(
     public_key: vector<u8>, // 32-byte Ed25519 public key
     signature: vector<u8>, // 64-byte Ed25519 signature
     timestamp: u64,
-    nonce: vector<u8>,
-    nonce_registry: &mut NonceRegistry,
     config: &Config,
     clock: &Clock,
     ctx: &mut TxContext,
@@ -248,31 +115,27 @@ public fun link_solana_wallet(
 
     // 3. Verify timestamp hasn't expired
     let current_time = clock::timestamp_ms(clock);
-    assert!(current_time - timestamp <= SIGNATURE_VALIDITY_MS, ETimestampExpired);
+    assert!(
+        current_time >= timestamp && current_time - timestamp <= SIGNATURE_VALIDITY_MS,
+        ETimestampExpired,
+    );
 
-    // 4. Verify nonce hasn't been used before
-    assert!(!sui::table::contains(&nonce_registry.used_nonces, nonce), ENonceAlreadyUsed);
-
-    // 5. Construct the message that should have been signed
+    // 4. Construct the message that should have been signed
     let chain = b"solana".to_string();
     let message = construct_multichain_link_message(
         object::id(profile),
         chain,
         wallet_address,
         timestamp,
-        &nonce,
     );
 
-    // 6. Verify the Ed25519 signature
+    // 5. Verify the Ed25519 signature
     verify_ed25519_signature(&message, &public_key, &signature);
 
-    // 7. Mark nonce as used
-    sui::table::add(&mut nonce_registry.used_nonces, nonce, current_time);
-
-    // 8. Add wallet to profile
+    // 6. Add wallet to profile
     profile::add_wallet_address(profile, chain, wallet_address, config, clock, ctx);
 
-    // 9. Emit event
+    // 7. Emit event
     event::emit(MultiChainWalletLinkedEvent {
         profile_id: object::id(profile),
         profile_owner: profile::owner(profile),
@@ -308,13 +171,8 @@ public fun unlink_wallet(
 // === Helper Functions ===
 
 /// Constructs the message to be signed
-/// Format: profile_id || wallet_address || timestamp || nonce
-fun construct_link_message(
-    profile_id: ID,
-    wallet_address: address,
-    timestamp: u64,
-    nonce: &vector<u8>,
-): vector<u8> {
+/// Format: profile_id || wallet_address || timestamp
+fun construct_link_message(profile_id: ID, wallet_address: address, timestamp: u64): vector<u8> {
     let mut message = vector::empty<u8>();
 
     // Add profile ID
@@ -328,9 +186,6 @@ fun construct_link_message(
     // Add timestamp
     let timestamp_bytes = bcs::to_bytes(&timestamp);
     vector::append(&mut message, timestamp_bytes);
-
-    // Add nonce
-    vector::append(&mut message, *nonce);
 
     message
 }
@@ -356,13 +211,12 @@ fun verify_ed25519_signature(
 }
 
 /// Constructs the message for multi-chain wallet linking
-/// Format: profile_id || chain || wallet_address || timestamp || nonce
+/// Format: profile_id || chain || wallet_address || timestamp
 fun construct_multichain_link_message(
     profile_id: ID,
     chain: String,
     wallet_address: String,
     timestamp: u64,
-    nonce: &vector<u8>,
 ): vector<u8> {
     let mut message = vector::empty<u8>();
 
@@ -381,9 +235,6 @@ fun construct_multichain_link_message(
     // Add timestamp
     let timestamp_bytes = bcs::to_bytes(&timestamp);
     vector::append(&mut message, timestamp_bytes);
-
-    // Add nonce
-    vector::append(&mut message, *nonce);
 
     message
 }
@@ -409,21 +260,4 @@ fun verify_ecdsa_k1_signature(
     );
 
     assert!(is_valid, EInvalidSignature);
-}
-
-// === View Functions ===
-
-/// Check if a nonce has been used
-public fun is_nonce_used(registry: &NonceRegistry, nonce: vector<u8>): bool {
-    sui::table::contains(&registry.used_nonces, nonce)
-}
-
-// === Test Helper Functions ===
-
-#[test_only]
-public fun create_test_registry(ctx: &mut TxContext): NonceRegistry {
-    NonceRegistry {
-        id: object::new(ctx),
-        used_nonces: sui::table::new(ctx),
-    }
 }

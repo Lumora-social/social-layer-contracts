@@ -247,27 +247,6 @@ public fun add_wallet_address(
     )
 }
 
-/// Updates an existing wallet address on a profile
-public fun update_wallet_address(
-    profile: &mut Profile,
-    network: String,
-    old_address: String,
-    new_address: String,
-    config: &Config,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    profile::update_wallet_address(
-        profile,
-        network,
-        old_address,
-        new_address,
-        config,
-        clock,
-        ctx,
-    )
-}
-
 /// Removes a wallet address from a profile
 public fun remove_wallet_address(
     profile: &mut Profile,

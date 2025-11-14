@@ -55,7 +55,6 @@ Entry functions for profile management:
 
 **Wallet Management**
 - `add_wallet_address` - Link additional wallet
-- `update_wallet_address` - Update linked wallet
 - `remove_wallet_address` - Unlink wallet
 
 **Profile Lifecycle**

@@ -16,6 +16,8 @@ const EDisplayNameInvalidCharacter: u64 = 7;
 const EWalletKeyNotAllowed: u64 = 8;
 const EWalletKeyAlreadyExists: u64 = 9;
 
+const PACKAGE_VERSION: u64 = 1;
+
 public struct SOCIAL_LAYER_CONFIG has drop {}
 
 public struct Config has key {
@@ -35,7 +37,7 @@ public struct ConfigManagerCap has key, store {
 }
 
 public fun assert_interacting_with_most_up_to_date_package(config: &Config) {
-    assert!(config.version == 1, ENotLatestVersion);
+    assert!(config.version == PACKAGE_VERSION, ENotLatestVersion);
 }
 
 public fun assert_address_is_config_manager(
@@ -56,11 +58,11 @@ public(package) fun create_config(otw: &SOCIAL_LAYER_CONFIG, ctx: &mut TxContext
     let config = Config {
         id: object::new(ctx),
         version: 1,
-        display_name_min_length: social_layer_constants::display_name_min_length(),
-        display_name_max_length: social_layer_constants::display_name_max_length(),
-        bio_min_length: social_layer_constants::bio_min_length(),
-        bio_max_length: social_layer_constants::bio_max_length(),
-        allowed_wallet_keys: social_layer_constants::allowed_wallet_keys(),
+        display_name_min_length: constants::display_name_min_length(),
+        display_name_max_length: constants::display_name_max_length(),
+        bio_min_length: constants::bio_min_length(),
+        bio_max_length: constants::bio_max_length(),
+        allowed_wallet_keys: constants::allowed_wallet_keys(),
         config_manager: tx_context::sender(ctx),
     };
 
@@ -144,8 +146,7 @@ public fun assert_bio_length_is_valid(config: &Config, bio: &String) {
 }
 
 public fun assert_display_name_is_valid(config: &Config, display_name: &String) {
-    assert!(display_name.length() >= config.display_name_min_length, EDisplayNameTooShort);
-    assert!(display_name.length() <= config.display_name_max_length, EDisplayNameTooLong);
+    assert_display_name_length_is_valid(config, display_name);
     let display_name_bytes = display_name.as_bytes();
     let mut index = 0;
     let len = display_name.length();
@@ -228,11 +229,11 @@ public fun test_create_config(ctx: &mut TxContext) {
     let config = Config {
         id: object::new(ctx),
         version: 1,
-        display_name_min_length: social_layer_constants::display_name_min_length(),
-        display_name_max_length: social_layer_constants::display_name_max_length(),
-        bio_min_length: social_layer_constants::bio_min_length(),
-        bio_max_length: social_layer_constants::bio_max_length(),
-        allowed_wallet_keys: social_layer_constants::allowed_wallet_keys(),
+        display_name_min_length: constants::display_name_min_length(),
+        display_name_max_length: constants::display_name_max_length(),
+        bio_min_length: constants::bio_min_length(),
+        bio_max_length: constants::bio_max_length(),
+        allowed_wallet_keys: constants::allowed_wallet_keys(),
         config_manager: tx_context::sender(ctx),
     };
     transfer::share_object(config)

@@ -21,6 +21,11 @@ const EDisplayNameNotMatching: u64 = 3;
 const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
 const EWalletKeyDoesNotExist: u64 = 7;
+const EDisplayNameChangeCooldown: u64 = 8;
+
+// Display name change cooldown: 10 minutes (600,000 milliseconds)
+// This prevents shared object contention issues with the Registry
+const DISPLAY_NAME_CHANGE_COOLDOWN_MS: u64 = 600000;
 
 public struct Profile has key, store {
     id: UID,
@@ -37,22 +42,14 @@ public struct Profile has key, store {
     is_archived: bool,
     created_at: u64,
     updated_at: u64,
+    last_display_name_change_at: u64,
 }
 
 public struct PROFILE has drop {}
 
 fun init(otw: PROFILE, ctx: &mut TxContext) {
     let publisher = sui::package::claim(otw, ctx);
-    let mut display = sui::display::new<Profile>(&publisher, ctx);
-
-    display.add(
-        b"image_url".to_string(),
-        b"{display_image_url}".to_string(),
-    );
-    display.update_version();
-
     transfer::public_transfer(publisher, ctx.sender());
-    transfer::public_transfer(display, ctx.sender());
 }
 
 // === Events ===
@@ -171,6 +168,11 @@ public fun wallet_addresses(self: &Profile): VecMap<String, vector<String>> {
     self.wallet_addresses
 }
 
+public fun social_accounts(self: &Profile): VecMap<String, String> {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.social_accounts
+}
+
 public(package) fun get_social_account_username(self: &Profile, platform: &String): Option<String> {
     if (sui::vec_map::contains(&self.social_accounts, platform)) {
         option::some(*sui::vec_map::get(&self.social_accounts, platform))
@@ -188,6 +190,16 @@ public fun is_archived(self: &Profile): bool {
     self.is_archived
 }
 
+public fun created_at(self: &Profile): u64 {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.created_at
+}
+
+public fun updated_at(self: &Profile): u64 {
+    assert!(!self.is_archived, EArchivedProfile);
+    self.updated_at
+}
+
 public fun uid(self: &Profile): &UID {
     &self.id
 }
@@ -203,49 +215,22 @@ public fun get_df<K: copy + drop + store, V: store + copy + drop>(
     df::borrow(&profile.id, df_key)
 }
 
-fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
-    event::emit(UpdateProfileEvent {
-        profile_id: object::id(profile),
-        owner: profile.owner,
-        display_name: profile.display_name,
-        timestamp: clock::timestamp_ms(clock),
-        display_image_url: profile.display_image_url,
-        background_image_url: profile.background_image_url,
-        wallet_addresses: profile.wallet_addresses,
-        url: profile.url,
-        bio: profile.bio,
-    });
+fun assert_display_name_not_taken(display_name: String, suins: &SuiNS) {
+    let mut display_name_with_sui = display_name;
+    std::string::append(
+        &mut display_name_with_sui,
+        b".sui".to_string(),
+    );
+    let domain = new(display_name_with_sui);
+    assert!(!has_record(suins.registry(), domain), EDisplayNameTaken);
 }
 
-fun emit_add_df_to_profile_event<K: copy + drop + store, V: store + copy + drop>(
-    profile: &Profile,
-    df_key: K,
-    df_value: V,
-    clock: &Clock,
-): V {
-    event::emit(AddDfToProfileEvent {
-        profile_id: object::id(profile),
-        owner: profile.owner,
-        timestamp: clock::timestamp_ms(clock),
-        df_key,
-        df_value,
-    });
-    df_value
-}
-
-fun emit_remove_df_from_profile_event<K: copy + drop + store, V: store + copy + drop>(
-    profile: &Profile,
-    df_key: K,
-    df_value: V,
-    clock: &Clock,
+fun assert_display_name_matches_with_suins(
+    display_name: String,
+    suins_registration: &SuinsRegistration,
 ) {
-    event::emit(RemoveDfFromProfileEvent {
-        profile_id: object::id(profile),
-        owner: profile.owner,
-        timestamp: clock::timestamp_ms(clock),
-        df_key,
-        df_value,
-    });
+    let expected_name = suins_registration.domain().label(1);
+    assert!(expected_name == display_name, EDisplayNameNotMatching);
 }
 
 // === Setters ===
@@ -291,10 +276,16 @@ public(package) fun set_display_name_helper(
         EDisplayNameAlreadyTaken,
     );
 
+    // Check cooldown period to prevent shared object contention
+    let current_time = clock::timestamp_ms(clock);
+    let time_since_last_change = current_time - profile.last_display_name_change_at;
+    assert!(time_since_last_change >= DISPLAY_NAME_CHANGE_COOLDOWN_MS, EDisplayNameChangeCooldown);
+
     social_layer_registry::remove_entry_display_name_registry(registry, profile.display_name);
-    profile.display_name = display_name;
-    profile.updated_at = clock::timestamp_ms(clock);
     social_layer_registry::add_entry_display_name_registry(registry, display_name);
+    profile.display_name = display_name;
+    profile.updated_at = current_time;
+    profile.last_display_name_change_at = current_time;
     emit_update_profile_event(profile, clock);
 }
 
@@ -438,9 +429,7 @@ public(package) fun add_wallet_address(
     if (sui::vec_map::contains(&profile.wallet_addresses, &network)) {
         // Network exists, check if address already linked
         let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
-        let found = std::vector::contains(addresses, &address);
-        // assert!(!std::vector::contains(addresses, &address), EWalletAddressAlreadyLinked);
-        if (!found) {
+        if (!std::vector::contains(addresses, &address)) {
             std::vector::push_back(addresses, address);
         }
     } else {
@@ -450,31 +439,6 @@ public(package) fun add_wallet_address(
         sui::vec_map::insert(&mut profile.wallet_addresses, network, addresses);
     };
 
-    profile.updated_at = clock::timestamp_ms(clock);
-
-    emit_update_profile_event(profile, clock);
-}
-
-public(package) fun update_wallet_address(
-    profile: &mut Profile,
-    network: String,
-    old_address: String,
-    new_address: String,
-    config: &Config,
-    clock: &Clock,
-    ctx: &TxContext,
-) {
-    config::assert_interacting_with_most_up_to_date_package(config);
-    assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
-    config::assert_wallet_key_is_allowed(config, &network);
-
-    assert!(sui::vec_map::contains(&profile.wallet_addresses, &network), EWalletKeyDoesNotExist);
-
-    let addresses = sui::vec_map::get_mut(&mut profile.wallet_addresses, &network);
-    let (found, index) = std::vector::index_of(addresses, &old_address);
-    assert!(found, EWalletKeyDoesNotExist);
-
-    *std::vector::borrow_mut(addresses, index) = new_address;
     profile.updated_at = clock::timestamp_ms(clock);
 
     emit_update_profile_event(profile, clock);
@@ -572,6 +536,7 @@ public(package) fun delete_profile(
         following,
         block_list,
         owner,
+        last_display_name_change_at: _,
     } = profile;
 
     table::drop(following);
@@ -625,7 +590,6 @@ public(package) fun create_profile_with_suins(
     ctx: &mut TxContext,
 ): Profile {
     assert_display_name_matches_with_suins(display_name, suins_registration);
-    suins_registration.uid();
     create_profile_helper(
         display_name,
         url,
@@ -664,14 +628,15 @@ public(package) fun create_profile_helper(
         EProfileAlreadyExists,
     );
 
+    let current_time = clock::timestamp_ms(clock);
     let profile = Profile {
         id: object::new(ctx),
         display_name,
         url,
         bio,
         is_archived: false,
-        created_at: clock::timestamp_ms(clock),
-        updated_at: clock::timestamp_ms(clock),
+        created_at: current_time,
+        updated_at: current_time,
         social_accounts: sui::vec_map::empty<String, String>(),
         display_image_url,
         background_image_url,
@@ -679,6 +644,7 @@ public(package) fun create_profile_helper(
         owner: tx_context::sender(ctx),
         following: sui::table::new(ctx),
         block_list: sui::table::new(ctx),
+        last_display_name_change_at: current_time,
     };
     social_layer_registry::add_entries(registry, display_name, profile.owner);
 
@@ -812,7 +778,22 @@ public fun is_blocked(profile: &Profile, address: address): bool {
     table::contains(&profile.block_list, address)
 }
 
-fun assert_display_name_not_taken(display_name: String, suins: &SuiNS) {
+public(package) fun link_social_account(
+    profile: &mut Profile,
+    platform: String,
+    username: String,
+    clock: &Clock,
+) {
+    sui::vec_map::insert(&mut profile.social_accounts, platform, username);
+    profile.updated_at = clock::timestamp_ms(clock);
+}
+
+public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, clock: &Clock) {
+    if (sui::vec_map::contains(&profile.social_accounts, platform)) {
+        sui::vec_map::remove(&mut profile.social_accounts, platform);
+        profile.updated_at = clock::timestamp_ms(clock);
+    };
+    ERROR;
     let mut display_name_with_sui = display_name;
     std::string::append(
         &mut display_name_with_sui,
@@ -830,19 +811,47 @@ fun assert_display_name_matches_with_suins(
     assert!(expected_name == display_name, EDisplayNameNotMatching);
 }
 
-public(package) fun link_social_account(
-    profile: &mut Profile,
-    platform: String,
-    username: String,
-    clock: &Clock,
-) {
-    sui::vec_map::insert(&mut profile.social_accounts, platform, username);
-    profile.updated_at = clock::timestamp_ms(clock);
+fun emit_update_profile_event(profile: &Profile, clock: &Clock) {
+    event::emit(UpdateProfileEvent {
+        profile_id: object::id(profile),
+        owner: profile.owner,
+        display_name: profile.display_name,
+        timestamp: clock::timestamp_ms(clock),
+        display_image_url: profile.display_image_url,
+        background_image_url: profile.background_image_url,
+        wallet_addresses: profile.wallet_addresses,
+        url: profile.url,
+        bio: profile.bio,
+    });
 }
 
-public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, clock: &Clock) {
-    if (sui::vec_map::contains(&profile.social_accounts, platform)) {
-        sui::vec_map::remove(&mut profile.social_accounts, platform);
-        profile.updated_at = clock::timestamp_ms(clock);
-    };
+fun emit_add_df_to_profile_event<K: copy + drop + store, V: store + copy + drop>(
+    profile: &Profile,
+    df_key: K,
+    df_value: V,
+    clock: &Clock,
+): V {
+    event::emit(AddDfToProfileEvent {
+        profile_id: object::id(profile),
+        owner: profile.owner,
+        timestamp: clock::timestamp_ms(clock),
+        df_key,
+        df_value,
+    });
+    df_value
+}
+
+fun emit_remove_df_from_profile_event<K: copy + drop + store, V: store + copy + drop>(
+    profile: &Profile,
+    df_key: K,
+    df_value: V,
+    clock: &Clock,
+) {
+    event::emit(RemoveDfFromProfileEvent {
+        profile_id: object::id(profile),
+        owner: profile.owner,
+        timestamp: clock::timestamp_ms(clock),
+        df_key,
+        df_value,
+    });
 }

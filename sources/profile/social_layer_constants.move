@@ -10,7 +10,7 @@ public fun display_name_min_length(): u64 { 3 }
 
 public fun display_name_max_length(): u64 { 63 }
 
-public fun bio_min_length(): u64 { 4 }
+public fun bio_min_length(): u64 { 0 }
 
 public fun bio_max_length(): u64 { 200 }
 

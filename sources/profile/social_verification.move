@@ -13,17 +13,16 @@ module suins_social_layer::social_verification;
 use std::string::String;
 use sui::bcs;
 use sui::clock::{Self, Clock};
-use sui::ed25519;
 use sui::event;
+use suins_social_layer::oracle_utils;
 use suins_social_layer::profile::{Self, Profile};
 use suins_social_layer::social_layer_config::{Self as config, Config};
 
 // === Errors ===
 #[error]
-const EInvalidSignature: u64 = 0;
-const ETimestampExpired: u64 = 1;
-const ESenderNotOwner: u64 = 2;
-const EInvalidMessageFormat: u64 = 3;
+const ETimestampExpired: u64 = 0;
+const ESenderNotOwner: u64 = 1;
+const EInvalidMessageFormat: u64 = 2;
 
 // Attestation validity window: 10 minutes (600,000 milliseconds)
 const ATTESTATION_VALIDITY_MS: u64 = 600000;
@@ -81,7 +80,11 @@ public fun update_oracle_public_key(
 }
 
 /// Transfers admin rights to a new address
-public fun transfer_admin(oracle_config: &mut OracleConfig, new_admin: address, ctx: &mut TxContext) {
+public fun transfer_admin(
+    oracle_config: &mut OracleConfig,
+    new_admin: address,
+    ctx: &mut TxContext,
+) {
     assert!(tx_context::sender(ctx) == oracle_config.admin, ESenderNotOwner);
     oracle_config.admin = new_admin;
 }
@@ -89,9 +92,6 @@ public fun transfer_admin(oracle_config: &mut OracleConfig, new_admin: address, 
 // === Public Functions ===
 
 /// Links a Twitter account to a profile with backend attestation
-
-/// # Message Format
-/// The signed message must be: profile_id || "twitter" || twitter_username || timestamp
 public fun link_twitter_account(
     profile: &mut Profile,
     twitter_username: String,
@@ -197,13 +197,13 @@ fun link_social_account_internal(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &mut TxContext,
+    ctx: &TxContext,
 ) {
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
 
     config::assert_interacting_with_most_up_to_date_package(config);
 
-    assert!(vector::length(&oracle_config.public_key) == 32, EInvalidMessageFormat);
+    oracle_utils::validate_oracle_public_key(&oracle_config.public_key);
 
     let current_time = clock::timestamp_ms(clock);
     assert!(
@@ -218,7 +218,7 @@ fun link_social_account_internal(
         timestamp,
     );
 
-    verify_oracle_signature(
+    oracle_utils::verify_oracle_signature(
         &message,
         &oracle_config.public_key,
         &signature,
@@ -274,22 +274,6 @@ fun construct_attestation_message(
     vector::append(&mut message, timestamp_bytes);
 
     message
-}
-
-/// Verifies backend oracle signature
-fun verify_oracle_signature(message: &vector<u8>, public_key: &vector<u8>, signature: &vector<u8>) {
-    // Validate lengths
-    assert!(vector::length(public_key) == 32, EInvalidMessageFormat);
-    assert!(vector::length(signature) == 64, EInvalidMessageFormat);
-
-    // Verify signature
-    let is_valid = ed25519::ed25519_verify(
-        signature,
-        public_key,
-        message,
-    );
-
-    assert!(is_valid, EInvalidSignature);
 }
 
 // === View Functions ===
