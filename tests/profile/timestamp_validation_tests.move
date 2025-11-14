@@ -44,7 +44,7 @@ fun encode_badge_to_bcs(
 }
 
 #[test]
-#[expected_failure(abort_code = 3)]
+#[expected_failure(abort_code = oracle_utils::EInvalidSignature, location = oracle_utils)]
 fun test_mint_badges_expired_timestamp_rejected() {
     let admin_address: address = @0xAD;
     let user_address: address = @0xA;

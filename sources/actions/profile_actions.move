@@ -280,7 +280,7 @@ public fun link_social_account(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     social_verification::link_social_account(
         profile,
@@ -301,7 +301,7 @@ public fun unlink_social_account(
     platform: &String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     social_verification::unlink_social_account(
         profile,
@@ -317,7 +317,7 @@ public fun archive_profile(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     profile::archive_profile(
         profile,

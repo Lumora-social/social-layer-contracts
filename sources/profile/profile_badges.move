@@ -343,6 +343,7 @@ public fun has_badge_category(profile: &Profile, category: String): bool {
 }
 
 #[test_only]
+#[allow(unused_function)]
 fun update_badge_collection(collection: &mut BadgeCollection, new_badges: vector<Badge>) {
     let mut i = 0;
     let len = vector::length(&new_badges);

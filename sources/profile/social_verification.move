@@ -41,7 +41,7 @@ public fun link_social_account(
     oracle_config: &OracleConfig,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     // 1. Verify sender is profile owner
     assert!(tx_context::sender(ctx) == profile::owner(profile), ESenderNotOwner);
@@ -92,7 +92,7 @@ public fun unlink_social_account(
     platform: &String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     profile::unlink_social_account(
         profile,

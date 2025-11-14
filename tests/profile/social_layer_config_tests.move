@@ -51,7 +51,7 @@ fun test_migrate_config_v1_to_v2() {
 }
 
 #[test]
-#[expected_failure(abort_code = 13)]
+#[expected_failure(abort_code = social_layer_config::EConfigAlreadyAtTargetVersion, location = social_layer_config)]
 fun test_migrate_config_already_at_version() {
     let admin_address: address = @0xAD;
     let config_manager_address: address = @0xCD;
@@ -98,7 +98,7 @@ fun test_migrate_config_already_at_version() {
 }
 
 #[test]
-#[expected_failure(abort_code = 12)]
+#[expected_failure(abort_code = social_layer_config::EInvalidMigrationVersion, location = social_layer_config)]
 fun test_migrate_config_invalid_target_version() {
     let admin_address: address = @0xAD;
     let config_manager_address: address = @0xCD;

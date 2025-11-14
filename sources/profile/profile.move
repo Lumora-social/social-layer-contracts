@@ -476,11 +476,12 @@ public(package) fun remove_wallet_address(
     emit_update_profile_event(profile, clock);
 }
 
+#[allow(unused_mut_parameter)]
 public(package) fun archive_profile(
     profile: &mut Profile,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
@@ -783,13 +784,14 @@ public fun is_blocked(profile: &Profile, address: address): bool {
     table::contains(&profile.block_list, address)
 }
 
+#[allow(unused_mut_parameter)]
 public(package) fun link_social_account(
     profile: &mut Profile,
     platform: String,
     username: String,
     config: &Config,
     clock: &Clock,
-    ctx: &TxContext,
+    ctx: &mut TxContext,
 ) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
@@ -802,7 +804,8 @@ public(package) fun link_social_account(
     emit_update_profile_event(profile, clock);
 }
 
-public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, config: &Config, clock: &Clock, ctx: &TxContext) {
+#[allow(unused_mut_parameter)]
+public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, config: &Config, clock: &Clock, ctx: &mut TxContext) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
