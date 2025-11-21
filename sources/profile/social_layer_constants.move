@@ -13,6 +13,7 @@ const SOCIAL_PLATFORM_TWITTER: vector<u8> = b"twitter";
 const SOCIAL_PLATFORM_DISCORD: vector<u8> = b"discord";
 const SOCIAL_PLATFORM_TELEGRAM: vector<u8> = b"telegram";
 const SOCIAL_PLATFORM_GOOGLE: vector<u8> = b"google";
+const SOCIAL_PLATFORM_GITHUB: vector<u8> = b"github";
 
 // Length constants
 const DISPLAY_NAME_MIN_LENGTH: u64 = 3;
@@ -38,6 +39,8 @@ public fun social_platform_telegram(): String { string::utf8(SOCIAL_PLATFORM_TEL
 
 public fun social_platform_google(): String { string::utf8(SOCIAL_PLATFORM_GOOGLE) }
 
+public fun social_platform_github(): String { string::utf8(SOCIAL_PLATFORM_GITHUB) }
+
 // Public getters for length constants
 public fun display_name_min_length(): u64 { DISPLAY_NAME_MIN_LENGTH }
 
@@ -62,5 +65,6 @@ public fun allowed_social_platforms(): vector<String> {
     v.push_back(social_platform_discord());
     v.push_back(social_platform_telegram());
     v.push_back(social_platform_google());
+    v.push_back(social_platform_github());
     v
 }
