@@ -14,12 +14,13 @@ const SOCIAL_PLATFORM_DISCORD: vector<u8> = b"discord";
 const SOCIAL_PLATFORM_TELEGRAM: vector<u8> = b"telegram";
 const SOCIAL_PLATFORM_GOOGLE: vector<u8> = b"google";
 const SOCIAL_PLATFORM_GITHUB: vector<u8> = b"github";
+const SOCIAL_PLATFORM_EMAIL: vector<u8> = b"email";
 
 // Length constants
 const DISPLAY_NAME_MIN_LENGTH: u64 = 3;
 const DISPLAY_NAME_MAX_LENGTH: u64 = 63;
 const BIO_MIN_LENGTH: u64 = 0;
-const BIO_MAX_LENGTH: u64 = 200;
+const BIO_MAX_LENGTH: u64 = 300;
 
 // Public getters for wallet keys
 public fun wallet_key_sui(): String { string::utf8(WALLET_KEY_SUI) }
@@ -40,6 +41,8 @@ public fun social_platform_telegram(): String { string::utf8(SOCIAL_PLATFORM_TEL
 public fun social_platform_google(): String { string::utf8(SOCIAL_PLATFORM_GOOGLE) }
 
 public fun social_platform_github(): String { string::utf8(SOCIAL_PLATFORM_GITHUB) }
+
+public fun social_platform_email(): String { string::utf8(SOCIAL_PLATFORM_EMAIL) }
 
 // Public getters for length constants
 public fun display_name_min_length(): u64 { DISPLAY_NAME_MIN_LENGTH }
@@ -66,5 +69,6 @@ public fun allowed_social_platforms(): vector<String> {
     v.push_back(social_platform_telegram());
     v.push_back(social_platform_google());
     v.push_back(social_platform_github());
+    v.push_back(social_platform_email());
     v
 }
