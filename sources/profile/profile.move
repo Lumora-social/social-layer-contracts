@@ -9,6 +9,7 @@ use sui::vec_map::VecMap;
 use suins::domain::new;
 use suins::registry::has_record;
 use suins::suins::SuiNS;
+use suins::suins_registration;
 use suins::suins_registration::SuinsRegistration;
 use suins_social_layer::social_layer_config::{Self as config, Config};
 use suins_social_layer::social_layer_registry::{Self, Registry};
@@ -20,6 +21,7 @@ const EProfileAlreadyExists: u64 = 2;
 const EDisplayNameNotMatching: u64 = 3;
 const EDisplayNameTaken: u64 = 4;
 const EDisplayNameAlreadyTaken: u64 = 5;
+const ESuinsRegistrationExpired: u64 = 6;
 const EWalletKeyDoesNotExist: u64 = 7;
 const EDisplayNameChangeCooldown: u64 = 8;
 
@@ -258,6 +260,10 @@ public(package) fun set_display_name_with_suins(
     clock: &Clock,
     ctx: &TxContext,
 ) {
+    assert!(
+        !suins_registration::has_expired(suins_registration, clock),
+        ESuinsRegistrationExpired
+    );
     assert_display_name_matches_with_suins(display_name, suins_registration);
     set_display_name_helper(profile, display_name, registry, config, clock, ctx);
 }
@@ -594,6 +600,10 @@ public(package) fun create_profile_with_suins(
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
+    assert!(
+        !suins_registration::has_expired(suins_registration, clock),
+        ESuinsRegistrationExpired
+    );
     assert_display_name_matches_with_suins(display_name, suins_registration);
     create_profile_helper(
         display_name,

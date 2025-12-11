@@ -32,7 +32,7 @@ const MAX_CLOCK_SKEW_MS: u64 = 5000;
 
 /// Link a social account to a profile using backend attestation
 /// Supports Twitter, Discord, Telegram, Google, etc.
-public fun link_social_account(
+public(package) fun link_social_account(
     profile: &mut Profile,
     platform: String,
     username: String,
@@ -87,7 +87,7 @@ public fun link_social_account(
 
 /// Unlink a social account from a profile
 /// No oracle verification needed for unlinking
-public fun unlink_social_account(
+public(package) fun unlink_social_account(
     profile: &mut Profile,
     platform: &String,
     config: &Config,
