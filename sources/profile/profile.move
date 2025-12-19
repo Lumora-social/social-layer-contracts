@@ -9,8 +9,7 @@ use sui::vec_map::VecMap;
 use suins::domain::new;
 use suins::registry::has_record;
 use suins::suins::SuiNS;
-use suins::suins_registration;
-use suins::suins_registration::SuinsRegistration;
+use suins::suins_registration::{Self, SuinsRegistration};
 use suins_social_layer::social_layer_config::{Self as config, Config};
 use suins_social_layer::social_layer_registry::{Self, Registry};
 
@@ -260,10 +259,7 @@ public(package) fun set_display_name_with_suins(
     clock: &Clock,
     ctx: &TxContext,
 ) {
-    assert!(
-        !suins_registration::has_expired(suins_registration, clock),
-        ESuinsRegistrationExpired
-    );
+    assert!(!suins_registration::has_expired(suins_registration, clock), ESuinsRegistrationExpired);
     assert_display_name_matches_with_suins(display_name, suins_registration);
     set_display_name_helper(profile, display_name, registry, config, clock, ctx);
 }
@@ -600,10 +596,7 @@ public(package) fun create_profile_with_suins(
     clock: &Clock,
     ctx: &mut TxContext,
 ): Profile {
-    assert!(
-        !suins_registration::has_expired(suins_registration, clock),
-        ESuinsRegistrationExpired
-    );
+    assert!(!suins_registration::has_expired(suins_registration, clock), ESuinsRegistrationExpired);
     assert_display_name_matches_with_suins(display_name, suins_registration);
     create_profile_helper(
         display_name,
@@ -659,7 +652,7 @@ public(package) fun create_profile_helper(
         owner: tx_context::sender(ctx),
         following: sui::table::new(ctx),
         block_list: sui::table::new(ctx),
-        last_display_name_change_at: current_time,
+        last_display_name_change_at: 0,
     };
     social_layer_registry::add_entries(registry, display_name, profile.owner);
 
@@ -815,7 +808,13 @@ public(package) fun link_social_account(
 }
 
 #[allow(unused_mut_parameter)]
-public(package) fun unlink_social_account(profile: &mut Profile, platform: &String, config: &Config, clock: &Clock, ctx: &mut TxContext) {
+public(package) fun unlink_social_account(
+    profile: &mut Profile,
+    platform: &String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
     config::assert_interacting_with_most_up_to_date_package(config);
     assert!(tx_context::sender(ctx) == profile.owner, ESenderNotOwner);
 
