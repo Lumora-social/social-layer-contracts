@@ -1,1 +1,5 @@
 build/*
+
+# Environment variables
+.env.*
+!.env.example
