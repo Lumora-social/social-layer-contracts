@@ -269,6 +269,26 @@ public fun link_chain_wallet(
     )
 }
 
+/// Unlinks a wallet from a profile
+/// Supported chains: "ETH", "BTC", "SOL", "SUI"
+public fun unlink_chain_wallet(
+    profile: &mut Profile,
+    chain: String,
+    wallet_address: String,
+    config: &Config,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    wallet_linking::unlink_chain_wallet(
+        profile,
+        chain,
+        wallet_address,
+        config,
+        clock,
+        ctx,
+    )
+}
+
 /// Links a social account to a profile with backend attestation
 /// Supported platforms: "twitter", "discord", "telegram", "google"
 public fun link_social_account(
@@ -405,12 +425,12 @@ public fun remove_df_from_profile_no_event<K: copy + drop + store, V: store + dr
     profile: &mut Profile,
     df_key: K,
     clock: &Clock,
-) {
+): Option<V> {
     profile::remove_df_from_profile_no_event<K, V>(
         profile,
         df_key,
         clock,
-    );
+    )
 }
 
 /// Mint badges on a profile with backend attestation

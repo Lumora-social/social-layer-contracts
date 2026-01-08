@@ -688,9 +688,12 @@ public(package) fun remove_df_from_profile<K: copy + drop + store, V: store + co
     df_key: K,
     clock: &Clock,
 ) {
-    let df_value: V = df::remove(&mut profile.id, df_key);
-    profile.updated_at = clock::timestamp_ms(clock);
-    emit_remove_df_from_profile_event(profile, df_key, df_value, clock);
+    // Only remove if the field exists to prevent abort errors
+    if (df::exists_(&profile.id, df_key)) {
+        let df_value: V = df::remove(&mut profile.id, df_key);
+        profile.updated_at = clock::timestamp_ms(clock);
+        emit_remove_df_from_profile_event(profile, df_key, df_value, clock);
+    };
 }
 
 public(package) fun add_df_to_profile_no_event<K: copy + drop + store, V: store + drop>(
@@ -707,10 +710,15 @@ public(package) fun remove_df_from_profile_no_event<K: copy + drop + store, V: s
     profile: &mut Profile,
     df_key: K,
     clock: &Clock,
-): V {
-    let df_value: V = df::remove(&mut profile.id, df_key);
-    profile.updated_at = clock::timestamp_ms(clock);
-    df_value
+): Option<V> {
+    // Only remove if the field exists to prevent abort errors
+    if (df::exists_(&profile.id, df_key)) {
+        let df_value: V = df::remove(&mut profile.id, df_key);
+        profile.updated_at = clock::timestamp_ms(clock);
+        std::option::some(df_value)
+    } else {
+        std::option::none()
+    }
 }
 
 // === Follow/Block Functions ===
