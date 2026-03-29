@@ -8,3 +8,4 @@ suins = { git = "https://github.com/MystenLabs/suins-contracts", rev = "releases
 
 [addresses]
 suins_social_layer = "0x0"
+social_layer = "0x0"
